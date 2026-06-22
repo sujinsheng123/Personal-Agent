@@ -39,3 +39,6 @@ class Settings(BaseSettings):
     # ── Cron ──
     enable_cron: bool = False
     cron_jobs_path: Path = Path("data/cron")
+
+    # ── Session ──
+    session_expire_days: int = 30  # auto-clean sessions inactive > N days

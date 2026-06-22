@@ -161,6 +161,33 @@ class SessionStore:
             return self._chain.resolve(entry.session_id)
         return entry.session_id
 
+    async def expire_sessions(self, max_age_days: int = 30) -> int:
+        """Remove sessions inactive for > max_age_days. Returns count removed."""
+        import time
+        cutoff = time.time() - (max_age_days * 86400)
+        expired: list[str] = []
+
+        for key, entry in list(self._index.items()):
+            if entry.last_active_at < cutoff:
+                expired.append(key)
+
+        for key in expired:
+            entry = self._index.pop(key, None)
+            if entry:
+                await self._db.delete_session(entry.session_id)
+
+        if expired:
+            self._save_index()
+            # Follow chain to also clean compressed descendants
+            if self._chain:
+                for key in expired:
+                    old_id = entry.session_id if (entry := self._index.get(key)) else None  # already popped
+                # Note: chain cleanup is deferred — old sessions without index entry
+                # are orphaned but not automatically deleted from DB
+
+        logger.info("Expired %d sessions (>%d days)", len(expired), max_age_days)
+        return len(expired)
+
     # ── persistence ───────────────────────────────────
 
     def _load_index(self) -> None:

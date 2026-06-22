@@ -26,6 +26,7 @@ class Gateway:
         self._adapters: list = []
         self._running_agents: dict[str, bool] = {}
         self._agent_cache: OrderedDict[str, object] = OrderedDict()
+        self._cron_scheduler = None
         self.hooks = Hooks()
         self._shutdown_event = asyncio.Event()
 
@@ -34,6 +35,18 @@ class Gateway:
     async def start(self) -> None:
         self._compression_chain.load()
         await self._session_store.initialize()
+        await self._session_store.expire_sessions(self.config.session_expire_days)
+
+        # Seed and start cron if enabled
+        if self.config.enable_cron:
+            from personal_agent.cron.store import CronStore
+            from personal_agent.cron.scheduler import CronScheduler
+            cron_store = CronStore(self.config.agent_data_dir / "cron" / "jobs.json")
+            cron_store.seed_defaults()
+            self._cron_scheduler = CronScheduler(cron_store, self)
+            self._cron_scheduler.start()
+        else:
+            self._cron_scheduler = None
 
         for entry in platform_registry.list():
             if entry.check_fn(self.config):
@@ -52,6 +65,8 @@ class Gateway:
         logger.info("Gateway started with %d platform(s)", len(self._adapters))
 
     async def stop(self) -> None:
+        if self._cron_scheduler:
+            self._cron_scheduler.stop()
         for adapter in self._adapters:
             try:
                 await adapter.disconnect()
