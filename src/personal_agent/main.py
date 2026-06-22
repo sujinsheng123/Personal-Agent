@@ -91,7 +91,6 @@ async def boot() -> None:
     await gateway.start()
 
     # ── 9. Wait for shutdown ──────────────────────────
-    # Try POSIX signal handlers first; fall back to KeyboardInterrupt for Windows
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGINT, signal.SIGTERM):
         try:
@@ -100,10 +99,14 @@ async def boot() -> None:
             pass
 
     logger.info("Personal Agent running. Press Ctrl+C to stop.")
+    # Windows: poll with sleep so KeyboardInterrupt can interrupt
     try:
-        await gateway.wait_for_shutdown()
+        while not hasattr(gateway, '_shutdown_event') or not gateway._shutdown_event.is_set():
+            await asyncio.sleep(1)
     except (asyncio.CancelledError, KeyboardInterrupt):
-        pass
+        logger.info("Interrupted, shutting down...")
+    finally:
+        await gateway.stop()
 
 
 async def _shutdown(gateway: Gateway) -> None:
