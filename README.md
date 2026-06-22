@@ -86,10 +86,28 @@ TELEGRAM_BOT_TOKEN=xxx
 - **钩子**：6 个挂载点（消息/LLM/工具/发送），简单 callback 列表
 - **压缩/Memory/Cron**：抽象基类 + config 驱动策略选择
 
+## 飞书 Bot 配置
+
+1. 进入[飞书开发者后台](https://open.feishu.cn/app)，创建企业自建应用
+2. 添加应用能力 → 开启「机器人」
+3. 事件订阅 → 添加 `im.message.receive_v1`（接收消息）事件
+4. 权限管理 → 添加 `im:message:read_as_bot`、`im:message:send_as_bot`
+5. 发布版本 → 管理员审核通过
+6. 在飞书中搜索你的 Bot 名称，发消息测试
+
 ## 测试
 
 ```bash
+# 单元测试（mock，不花 API 费）
 uv run pytest tests/ -v
+
+# CLI 测试（真实 API 调用）
+uv run python -m personal_agent --cli "你好，1+1等于几？"
+
+# 启动飞书 Bot（WebSocket 长连接）
+uv run python -m personal_agent
+
+# 启动后给 Bot 发消息，观察日志输出
 ```
 
 ## 目录结构
