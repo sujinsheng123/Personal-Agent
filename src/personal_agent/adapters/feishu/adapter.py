@@ -44,6 +44,7 @@ class FeishuAdapter(BasePlatformAdapter):
         import threading
         self._stop_event = threading.Event()
         self._ws_ready = threading.Event()
+        self._ws_connected = threading.Event()  # tracks live connection status
 
         def _run_ws():
             # WS client module captures the event loop at import time.
@@ -75,13 +76,16 @@ class FeishuAdapter(BasePlatformAdapter):
                     app_id=self._app_id,
                     app_secret=self._app_secret,
                     event_handler=handler,
+                    auto_reconnect=True,  # lark-oapi built-in reconnect
                 )
                 self._ws_client = client
+                self._ws_connected.set()
                 self._ws_ready.set()
-                logger.info("Feishu WS client starting (v2 SDK)")
+                logger.info("Feishu WS client starting (v2 SDK, auto_reconnect=True)")
                 client.start()
             except Exception:
                 logger.exception("Feishu WS client failed to start")
+                self._ws_connected.clear()
                 self._ws_ready.set()
 
         self._ws_thread = threading.Thread(target=_run_ws, daemon=True, name="feishu-ws")
@@ -92,7 +96,12 @@ class FeishuAdapter(BasePlatformAdapter):
         else:
             logger.info("Feishu adapter connected")
 
+        # Health check watcher: periodically verify WS is alive, reconnect if not
+        self._health_check_task = asyncio.create_task(self._health_check_loop())
+
     async def disconnect(self) -> None:
+        if hasattr(self, '_health_check_task'):
+            self._health_check_task.cancel()
         if self._ws_client:
             try:
                 self._ws_client.stop()
@@ -102,7 +111,34 @@ class FeishuAdapter(BasePlatformAdapter):
         self._lark_client = None
         if hasattr(self, '_stop_event'):
             self._stop_event.set()
+        self._ws_connected.clear()
         logger.info("Feishu adapter disconnected")
+
+    # ── health check ──────────────────────────────────
+
+    async def _health_check_loop(self) -> None:
+        """Every 30s, log WS status. If disconnected > 90s, force reconnect."""
+        await asyncio.sleep(60)
+        disconnected_since = 0.0
+        while not (hasattr(self, '_stop_event') and self._stop_event.is_set()):
+            await asyncio.sleep(30)
+            if not self._ws_connected.is_set():
+                if disconnected_since == 0:
+                    disconnected_since = time.time()
+                    logger.warning("Feishu WS appears disconnected — SDK auto_reconnect should handle it")
+                elif time.time() - disconnected_since > 90:
+                    logger.error("Feishu WS disconnected for 90s, forcing reconnect")
+                    try:
+                        if self._ws_client:
+                            self._ws_client.stop()
+                    except Exception:
+                        pass
+                    self._ws_client = None
+                    self._ws_ready.clear()
+                    await self.connect()
+                    return
+            else:
+                disconnected_since = 0.0
 
     # ── send ──────────────────────────────────────────
 
