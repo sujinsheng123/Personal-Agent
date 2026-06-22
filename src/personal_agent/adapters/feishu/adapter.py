@@ -59,7 +59,7 @@ class FeishuAdapter(BasePlatformAdapter):
                     logger.exception("Feishu WS message parse failed")
 
             handler = EventDispatcherHandlerBuilder("", "") \
-                .register_p1_customized_event("im.message.receive_v1", on_message) \
+                .register_p2_im_message_receive_v1(on_message) \
                 .build()
 
             try:
@@ -153,20 +153,20 @@ class FeishuAdapter(BasePlatformAdapter):
     # ── message parsing ───────────────────────────────
 
     async def _handle_feishu_event(self, event_data) -> None:
-        """Parse Feishu v1 event (CustomizedEvent) → MessageEvent → pipeline."""
+        """Parse Feishu v2 event (P2ImMessageReceiveV1) → MessageEvent → pipeline."""
         try:
-            # v1: event_data.event is a dict with sender + message
-            payload = event_data.event
-            if not isinstance(payload, dict):
+            # v2: event_data.event is P2ImMessageReceiveV1Data (sender + message objects)
+            inner = event_data.event
+            if inner is None:
                 return
 
-            msg = payload.get("message", payload)
-            if not isinstance(msg, dict):
+            msg = inner.message
+            if msg is None:
                 return
 
-            content_raw = msg.get("content", "{}")
+            content_raw = msg.content or "{}"
             try:
-                content_obj = json.loads(content_raw) if isinstance(content_raw, str) else content_raw
+                content_obj = json.loads(content_raw)
                 text = content_obj.get("text", "")
             except (json.JSONDecodeError, TypeError):
                 text = str(content_raw)
@@ -174,19 +174,19 @@ class FeishuAdapter(BasePlatformAdapter):
             if not text:
                 return
 
-            sender = payload.get("sender", {})
+            # sender_id is a UserId object with open_id/union_id/user_id attrs
+            sender = inner.sender
             user_id = ""
-            if isinstance(sender, dict):
-                sid = sender.get("sender_id", {})
-                if isinstance(sid, dict):
-                    user_id = sid.get("open_id") or sid.get("union_id") or sid.get("user_id") or ""
+            if sender and sender.sender_id:
+                uid = sender.sender_id
+                user_id = uid.open_id or uid.union_id or uid.user_id or ""
 
             source = SessionSource(
                 platform="feishu",
                 user_id=user_id,
                 user_name="",
-                chat_id=msg.get("chat_id", ""),
-                chat_type=msg.get("chat_type", "dm"),
+                chat_id=msg.chat_id or "",
+                chat_type=msg.chat_type or "dm",
             )
 
             event = MessageEvent(
@@ -194,8 +194,8 @@ class FeishuAdapter(BasePlatformAdapter):
                 message_type="command" if text.startswith("/") else "text",
                 source=source,
                 raw_message=event_data,
-                message_id=msg.get("message_id"),
-                timestamp=float(msg.get("create_time", time.time())),
+                message_id=msg.message_id,
+                timestamp=float(msg.create_time or time.time()),
             )
             self.handle_message(event)
         except Exception:
