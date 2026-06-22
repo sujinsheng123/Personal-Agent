@@ -62,6 +62,8 @@ def init_agent(
     system_prompt_template: str = "",
 ) -> Agent:
     """Wire an Agent instance. Flat initialization — no 1700-line magic."""
+    from concurrent.futures import ThreadPoolExecutor
+    pool = ThreadPoolExecutor(max_workers=8)
     agent = Agent(
         model=provider.model,
         max_iterations=max_iterations,
@@ -69,6 +71,8 @@ def init_agent(
         _provider=provider,
         _memory_manager=memory_manager,
         _compressor=compressor,
+        _llm_pool=pool,
+        _tool_pool=pool,  # shared pool for MVP, separate later
     )
     _refresh_tools(agent)
     _build_system_prompt(agent, system_prompt_template)

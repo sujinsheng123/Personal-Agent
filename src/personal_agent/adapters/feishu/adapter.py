@@ -38,8 +38,8 @@ class FeishuAdapter(BasePlatformAdapter):
                 # event_data is a CustomizedEvent with the message payload
                 try:
                     msg = event_data.event
-                    self._loop.call_soon_threadsafe(
-                        lambda m=msg: asyncio.ensure_future(self._handle_feishu_event(m))
+                    asyncio.run_coroutine_threadsafe(
+                        self._handle_feishu_event(msg), self._loop
                     )
                 except Exception:
                     logger.exception("Feishu WS message parse failed")

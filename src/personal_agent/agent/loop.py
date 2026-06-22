@@ -17,7 +17,7 @@ async def run_conversation(agent, ctx) -> dict:
             break
 
         # ── build api_messages (injections, NOT persisted) ──
-        api_messages = _build_api_messages(ctx)
+        api_messages = await _build_api_messages(agent, ctx)
 
         # ── refresh system prompt if tools changed ──
         system_prompt = agent._cached_system_prompt or ""
@@ -121,6 +121,17 @@ async def run_conversation(agent, ctx) -> dict:
     }
 
 
-def _build_api_messages(ctx) -> list[dict]:
+async def _build_api_messages(agent, ctx) -> list[dict]:
     """Build messages for LLM: messages + injections. NOT persisted."""
-    return list(ctx.messages)  # MVP: no injections yet
+    msgs = list(ctx.messages)
+
+    # Memory prefetch: external provider results injected as prefix
+    if agent._memory_manager:
+        try:
+            prefetched = await agent._memory_manager.prefetch(ctx.original_user_message)
+            for p in prefetched:
+                msgs.insert(0, p)
+        except Exception:
+            pass  # prefetch failure never blocks the turn
+
+    return msgs
