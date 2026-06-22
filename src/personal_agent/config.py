@@ -67,3 +67,9 @@ class Settings:
         # ── Session (from config.yaml) ──
         session = yaml_cfg.get("session", {})
         self.session_expire_days: int = session.get("expire_days", 30)
+
+        # ── Auth (from config.yaml) ──
+        auth = yaml_cfg.get("auth", {})
+        self.auth_enabled: bool = auth.get("enabled", False)
+        self.auth_admins: list[str] = auth.get("admins", [])
+        self.auth_allowed_users: list[str] = auth.get("allowed_users", [])

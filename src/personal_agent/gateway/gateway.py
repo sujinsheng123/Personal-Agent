@@ -21,7 +21,9 @@ class Gateway:
         self._memory_manager = memory_manager
         self._system_prompt_template = system_prompt_template
         from personal_agent.gateway.compression_chain import CompressionChain
+        from personal_agent.gateway.auth import AuthManager
         self._compression_chain = CompressionChain(config.agent_data_dir / "compression_chain.json")
+        self._auth_manager = AuthManager(config, config.agent_data_dir)
         self._session_store = SessionStore(db, config.agent_data_dir, chain=self._compression_chain)
         self._adapters: list = []
         self._running_agents: dict[str, bool] = {}
@@ -91,10 +93,13 @@ class Gateway:
             if hook_result is not event:
                 event = hook_result
 
-        # 2. Authorization (skip internal events)
-        if not event.internal:
-            if not self._authorize(event):
-                return "抱歉，你没有权限使用此服务。"
+        # 2. Authorization (skip internal/cron events)
+        if not event.internal and event.source.user_id != "cron":
+            allowed, challenge = self._auth_manager.check(
+                event.source.user_id, event.text
+            )
+            if not allowed:
+                return challenge or "抱歉，你没有权限使用此服务。"
 
         # 3. Command detection
         if event.text.startswith("/"):
@@ -255,7 +260,4 @@ class Gateway:
         return None  # unknown command → pass to agent
 
     # ── auth ──────────────────────────────────────────
-
-    def _authorize(self, event) -> bool:
-        """Simple auth: MVP allows all. Extend with allowlists later."""
-        return True
+    # Auth is now handled by AuthManager — see gateway/auth.py

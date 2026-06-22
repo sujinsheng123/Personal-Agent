@@ -23,3 +23,8 @@ cron:
 
 session:
   expire_days: 30
+
+auth:
+  enabled: false              # true = enable auth (static + pairing)
+  admins: []                  # admin user IDs (always pass, no challenge)
+  allowed_users: []           # pre-approved user IDs (skip pairing)
