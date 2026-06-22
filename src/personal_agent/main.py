@@ -47,6 +47,7 @@ async def boot() -> None:
     import personal_agent.tools.builtin.todo              # noqa
     # memory tool is auto-registered in file_store.py
 
+    import personal_agent.llm                # noqa: trigger transport/provider registration
     import personal_agent.adapters.feishu     # noqa
     import personal_agent.adapters.telegram   # noqa
     import personal_agent.skills.builtin      # noqa: triggers skill registration

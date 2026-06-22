@@ -74,6 +74,24 @@ async def run_conversation(agent, ctx) -> dict:
                 "completed": True,
             }
 
+        # ── retry: invalid JSON in tool calls ──
+        invalid_tools = [
+            tc for tc in (response.tool_calls or [])
+            if not tc.get("input") and tc.get("name")
+        ]
+        if invalid_tools and response.tool_calls:
+            if agent._retry.invalid_tool_retries < agent._retry.MAX_INVALID_TOOL:
+                agent._retry.invalid_tool_retries += 1
+                bad_names = ", ".join(tc["name"] for tc in invalid_tools)
+                ctx.messages.append({
+                    "role": "user",
+                    "content": [{"type": "text", "text":
+                        f"Your previous tool call(s) had invalid JSON arguments: {bad_names}. "
+                        f"Please retry with valid JSON arguments."}],
+                })
+                logger.debug("Invalid tool retry %d: %s", agent._retry.invalid_tool_retries, bad_names)
+                continue
+
         # ── no tool_calls → done ──
         if not response.tool_calls:
             ctx.messages.append({

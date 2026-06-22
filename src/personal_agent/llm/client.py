@@ -78,3 +78,54 @@ async def call_anthropic(
                 raise StreamError(f"HTTP {response.status_code}: {response.text[:500]}")
             data = response.json()
             yield data
+
+
+async def call_chat_completions(
+    base_url: str,
+    api_key: str,
+    body: dict,
+    *,
+    timeout: float = 120.0,
+    stream: bool = True,
+    extra_headers: dict[str, str] | None = None,
+) -> AsyncIterator[dict[str, Any]]:
+    """POST to OpenAI /v1/chat/completions.
+
+    When stream=True: yields parsed SSE events (one per chunk).
+    When stream=False: yields a single complete response dict.
+    """
+    url = f"{base_url.rstrip('/')}/chat/completions"
+    body_with_stream = {**body, "stream": stream}
+
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+        **(extra_headers or {}),
+    }
+
+    async with httpx.AsyncClient(timeout=httpx.Timeout(timeout)) as client:
+        if stream:
+            async with client.stream("POST", url, json=body_with_stream, headers=headers) as response:
+                if response.status_code == 429:
+                    raise RateLimitError("429 rate limited")
+                if response.status_code >= 400:
+                    body_text = await response.aread()
+                    raise StreamError(f"HTTP {response.status_code}: {body_text[:500]}")
+                async for line in response.aiter_lines():
+                    if not line or not line.startswith("data:"):
+                        continue
+                    data_str = line[5:].strip()
+                    if data_str == "[DONE]":
+                        break
+                    try:
+                        yield json.loads(data_str)
+                    except json.JSONDecodeError:
+                        logger.debug("Unparsable SSE line: %s", line[:100])
+                        continue
+        else:
+            response = await client.post(url, json=body_with_stream, headers=headers)
+            if response.status_code == 429:
+                raise RateLimitError("429 rate limited")
+            if response.status_code >= 400:
+                raise StreamError(f"HTTP {response.status_code}: {response.text[:500]}")
+            yield response.json()

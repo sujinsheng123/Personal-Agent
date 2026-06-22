@@ -137,18 +137,21 @@ class Gateway:
 
     def _create_agent(self, session_key: str):
         from personal_agent.agent.agent import init_agent
-        from personal_agent.llm.provider import ProviderProfile
-        from personal_agent.llm.anthropic import AnthropicMessagesTransport
+        from personal_agent.llm.provider import provider_registry
+        from personal_agent.llm.transport_registry import transport_registry
         from personal_agent.compression.simple import SimpleCompressor
 
-        provider = ProviderProfile(
-            name=self.config.llm_provider,
-            base_url=self.config.llm_base_url,
-            api_key=self.config.llm_api_key,
-            model=self.config.llm_model,
-            max_tokens=self.config.llm_max_tokens,
+        # Resolve provider via registry
+        provider_name = self.config.llm_provider
+        provider = provider_registry.get(provider_name, self.config)
+
+        # Detect api_mode and get transport
+        api_mode = provider_registry.detect_api_mode(
+            self.config.llm_base_url, provider_name
         )
-        transport = AnthropicMessagesTransport(provider)
+        transport = transport_registry.get(api_mode, provider)
+        logger.debug("Agent transport: provider=%s api_mode=%s", provider_name, api_mode)
+
         compressor = SimpleCompressor() if self.config.compressor_engine == "simple" else None
 
         agent = init_agent(
@@ -164,6 +167,7 @@ class Gateway:
             self._agent_cache.popitem(last=False)
         self._agent_cache[session_key] = agent
         return agent
+
 
     # ── commands ──────────────────────────────────────
 

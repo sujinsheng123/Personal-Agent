@@ -131,7 +131,7 @@ class AnthropicMessagesTransport(BaseTransport):
 
         finish_reason = _map_stop_reason(stop_reason, bool(tool_calls))
 
-        return NormalizedResponse(
+        normalized = NormalizedResponse(
             text="".join(text_parts),
             tool_calls=tool_calls,
             usage=usage,
@@ -139,6 +139,11 @@ class AnthropicMessagesTransport(BaseTransport):
             stop_reason=stop_reason,
             model=model,
         )
+
+        if self._provider.response_hook:
+            normalized = self._provider.response_hook(normalized)
+
+        return normalized
 
     # ── format conversions ─────────────────────────────
 
