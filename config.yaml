@@ -1,0 +1,25 @@
+# Personal Agent — behavioral configuration
+# API keys / base URLs / secrets → .env
+
+agent:
+  max_iterations: 30
+
+storage:
+  data_dir: "./data"
+  log_level: "INFO"
+
+compression:
+  engine: "compressor"       # compressor (built-in) | lcm (future)
+  model: ""                  # empty = use main model; set = cheap model
+  max_tokens: 500
+  tail_token_budget: 20000
+  threshold_ratio: 0.6
+
+memory:
+  provider: "file"           # file | rag (future)
+
+cron:
+  enabled: false
+
+session:
+  expire_days: 30

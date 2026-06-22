@@ -14,6 +14,8 @@ dependencies = [
     "duckduckgo-search>=6.3",
     "html2text>=2024.2",
     "croniter>=3.0",
+    "pyyaml>=6.0.3",
+    "python-dotenv>=1.2.2",
 ]
 
 [build-system]
