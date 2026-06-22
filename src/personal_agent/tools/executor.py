@@ -37,9 +37,9 @@ async def execute_tool_calls(
 
     results: dict[int, str] = {}
 
-    # ── parallel group: gather with return_exceptions, single fault isolation ──
+    # ── parallel group: thread pool (asyncio.to_thread), single fault isolation ──
     if parallel_safe:
-        tasks = [asyncio.create_task(_exec_one(tc, hooks)) for _, tc in parallel_safe]
+        tasks = [asyncio.to_thread(_exec_one_sync, tc, hooks) for _, tc in parallel_safe]
         gathered = await asyncio.gather(*tasks, return_exceptions=True)
         for i, (idx, _tc) in enumerate(parallel_safe):
             result = gathered[i]
@@ -104,3 +104,8 @@ async def _exec_one(tc: dict, hooks: Any = None) -> str:
 
     logger.debug("Tool '%s' done: %d chars", tc["name"], len(result))
     return result
+
+
+def _exec_one_sync(tc: dict, hooks: Any = None) -> str:
+    """Synchronous wrapper for thread-pool execution. Runs async _exec_one in a new loop."""
+    return asyncio.run(_exec_one(tc, hooks))

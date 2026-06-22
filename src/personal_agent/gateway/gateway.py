@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+from collections import OrderedDict
 
 from personal_agent.adapters.base import platform_registry
 from personal_agent.agent.hooks import Hooks
@@ -22,6 +23,7 @@ class Gateway:
         self._session_store = SessionStore(db, config.agent_data_dir)
         self._adapters: list = []
         self._running_agents: dict[str, bool] = {}
+        self._agent_cache: OrderedDict[str, object] = OrderedDict()
         self.hooks = Hooks()
         self._shutdown_event = asyncio.Event()
 
@@ -121,7 +123,19 @@ class Gateway:
         return final or "..."
 
     def _get_or_create_agent(self, session_key: str):
-        """MVP: create fresh Agent each time. Extension: LRU cache."""
+        """Return cached Agent if available, otherwise create and cache."""
+        if session_key in self._agent_cache:
+            agent = self._agent_cache[session_key]
+            # Check if tools stale (registry generation changed)
+            from personal_agent.tools.registry import tool_registry
+            if agent._tools_generation == tool_registry.generation:
+                return agent
+            # Tools changed — evict stale cache entry
+            del self._agent_cache[session_key]
+
+        return self._create_agent(session_key)
+
+    def _create_agent(self, session_key: str):
         from personal_agent.agent.agent import init_agent
         from personal_agent.llm.provider import ProviderProfile
         from personal_agent.llm.anthropic import AnthropicMessagesTransport
@@ -137,13 +151,19 @@ class Gateway:
         transport = AnthropicMessagesTransport(provider)
         compressor = SimpleCompressor() if self.config.compressor_engine == "simple" else None
 
-        return init_agent(
+        agent = init_agent(
             transport, provider,
             memory_manager=self._memory_manager,
             compressor=compressor,
             max_iterations=self.config.max_iterations,
             system_prompt_template=self._system_prompt_template,
         )
+        # LRU eviction if cache too large
+        if len(self._agent_cache) >= 128:
+            from collections import OrderedDict
+            self._agent_cache.popitem(last=False)
+        self._agent_cache[session_key] = agent
+        return agent
 
     # ── commands ──────────────────────────────────────
 
