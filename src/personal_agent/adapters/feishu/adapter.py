@@ -58,6 +58,16 @@ class FeishuAdapter(BasePlatformAdapter):
                 except Exception:
                     logger.exception("Feishu WS message parse failed")
 
+            # Set Lark SDK logger to DEBUG to see raw event payloads.
+            # Need a dedicated handler because root logger is INFO-only.
+            lark_logger = logging.getLogger("Lark")
+            lark_logger.setLevel(logging.DEBUG)
+            if not lark_logger.handlers:
+                h = logging.StreamHandler()
+                h.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s"))
+                lark_logger.addHandler(h)
+                lark_logger.propagate = False  # don't go to root, which blocks DEBUG
+
             handler = EventDispatcherHandlerBuilder("", "") \
                 .register_p2_im_message_receive_v1(on_message) \
                 .build()
