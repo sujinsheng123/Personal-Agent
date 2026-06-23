@@ -239,6 +239,14 @@ class Gateway:
             system_prompt_template=self._system_prompt_template,
             enabled_toolsets=self.config.enabled_toolsets,
         )
+        # Wire delegate subsystem (so delegate_task tool can call LLM)
+        from personal_agent.tools.builtin.delegate import setup_delegate
+        setup_delegate(
+            call_fn=transport.call,
+            tools=agent.tools,
+            max_tokens=provider.max_tokens,
+        )
+
         # LRU eviction if cache too large
         if len(self._agent_cache) >= 128:
             from collections import OrderedDict

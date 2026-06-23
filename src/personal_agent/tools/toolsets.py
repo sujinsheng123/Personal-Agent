@@ -11,6 +11,9 @@ _CORE_TOOLS: set[str] = {
     "weather", "random", "timer", "json",
     "grep", "glob",
     "skill_search", "skill_load",
+    "clarify", "execute_code", "delegate_task",
+    "process_list", "process_kill", "process_wait",
+    "confirm",
 }
 
 # Toolset groups — name → list of tool names
@@ -23,6 +26,8 @@ TOOLSETS: dict[str, set[str]] = {
     "memory":   {"memory", "memory_ingest", "todo"},
     "info":     {"weather"},
     "mcp":      set(),  # MCP tools are registered dynamically at startup
+    "code":     {"execute_code", "delegate_task"},
+    "interact": {"clarify", "confirm", "process_list", "process_kill", "process_wait"},
 }
 
 
