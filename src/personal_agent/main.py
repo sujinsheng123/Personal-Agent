@@ -80,6 +80,7 @@ async def boot() -> None:
     import personal_agent.llm                # noqa: trigger transport/provider registration
     import personal_agent.adapters.feishu     # noqa
     import personal_agent.adapters.telegram   # noqa
+    import personal_agent.adapters.wechat     # noqa
     import personal_agent.skills.builtin      # noqa: triggers skill registration
 
     # ── 4. Database ────────────────────────────────────
@@ -158,6 +159,8 @@ def main() -> None:
     """CLI entry: python -m personal_agent"""
     if len(sys.argv) > 1 and sys.argv[1] == "--cli":
         _run_cli(sys.argv[2] if len(sys.argv) > 2 else "Hello")
+    elif len(sys.argv) > 1 and sys.argv[1] == "--wechat-login":
+        _run_wechat_login()
     elif len(sys.argv) > 1 and sys.argv[1] == "--ingest":
         _run_ingest(sys.argv[2] if len(sys.argv) > 2 else "")
     else:
@@ -165,6 +168,17 @@ def main() -> None:
             asyncio.run(boot())
         except KeyboardInterrupt:
             pass
+
+
+def _run_wechat_login() -> None:
+    """CLI: QR login for WeChat."""
+    import asyncio
+    from pathlib import Path
+    from personal_agent.adapters.wechat.adapter import wechat_qr_login
+
+    settings = Settings()
+    base_url = settings.weixin_base_url
+    asyncio.run(wechat_qr_login(settings.agent_data_dir / "wechat", base_url))
 
 
 def _run_ingest(file_path: str) -> None:
