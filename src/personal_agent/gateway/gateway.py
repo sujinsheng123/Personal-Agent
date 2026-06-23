@@ -307,8 +307,8 @@ class Gateway:
             return f"会话已切换: {new_key}"
 
         if text.startswith("/new"):
-            await self._session_store.delete_session(session_key)
-            return "会话已重置。开始新的对话吧。"
+            await self._session_store.reset_session(session_key)
+            return "会话已重置。开始新的对话吧。（历史对话保留，可用 /session 查看）"
 
         if text.startswith("/allow"):
             # Granular: /allow write, /allow shell, /allow all

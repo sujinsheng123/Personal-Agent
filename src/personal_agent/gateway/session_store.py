@@ -71,6 +71,20 @@ class SessionStore:
 
         await self._db.update_last_active(session_id, increment_message=True)
 
+    async def reset_session(self, session_key: str) -> str:
+        """Start a new conversation — keep old messages, create new session_id."""
+        old = self._index.get(session_key)
+        new_id = str(uuid.uuid4())
+        entry = SessionEntry(
+            session_id=new_id, session_key=session_key,
+            platform=old.platform if old else "", user_id=old.user_id if old else "",
+            created_at=time.time(), last_active_at=time.time(),
+        )
+        self._index[session_key] = entry
+        self._save_index()
+        logger.info("Session reset: %s → %s", session_key, new_id)
+        return new_id
+
     async def delete_session(self, session_key: str) -> str | None:
         entry = self._index.pop(session_key, None)
         if entry:
