@@ -28,6 +28,7 @@ class Gateway:
         self._adapters: list = []
         self._running_agents: dict[str, bool] = {}
         self._agent_cache: OrderedDict[str, object] = OrderedDict()
+        self._session_override: dict[str, str] = {}  # platform:user → custom chat_id
         self._cron_scheduler = None
         self.hooks = Hooks()
         self._shutdown_event = asyncio.Event()
@@ -84,6 +85,10 @@ class Gateway:
     async def _handle_message(self, event) -> str | None:
         """Gateway callback from adapter. Returns response text."""
         session_key = f"{event.source.platform}:{event.source.chat_id}:{event.source.user_id}"
+        # Apply session override if set (via /session command)
+        override = self._session_override.get(session_key)
+        if override:
+            session_key = override
 
         # 1. Hook: on_message_received (only if hooks registered)
         if self.hooks.on_message_received:
@@ -237,16 +242,19 @@ class Gateway:
         if text.startswith("/session"):
             parts = text.split()
             if len(parts) < 2:
-                return f"用法: /session <name>。当前会话: {session_key}"
+                current = self._session_override.get(session_key, session_key)
+                return f"当前会话: {current}\n用法: /session <name>"
+
             new_name = parts[1]
-            # Only allow switching chat_id — platform and user_id stay fixed
-            key_parts = session_key.split(":", 2)
+            # Compute base key from source (ignoring any existing override)
+            base_key = f"{event.source.platform}:{event.source.chat_id}:{event.source.user_id}"
+            key_parts = base_key.split(":", 2)
             platform = key_parts[0]
             user_id = key_parts[2] if len(key_parts) > 2 else ""
             new_key = f"{platform}:{new_name}:{user_id}"
+            self._session_override[base_key] = new_key
             await self._session_store.get_or_create(new_key, event.source)
-            await self._session_store.delete_session(session_key)
-            return f"会话已切换到: {new_key}"
+            return f"会话已切换: {new_key}"
 
         if text.startswith("/new"):
             await self._session_store.delete_session(session_key)
@@ -275,6 +283,7 @@ class Gateway:
             return (
                 "可用命令:\n"
                 "/new - 重置对话\n"
+                "/session <name> - 切换会话\n"
                 "/stop - 停止当前处理\n"
                 "/allow - 授权危险操作（如写文件）\n"
                 "/help - 显示此帮助\n"
