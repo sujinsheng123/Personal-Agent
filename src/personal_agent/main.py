@@ -18,7 +18,7 @@ from personal_agent.tools.builtin.file_write import set_allowed_base as set_file
 from personal_agent.tools.builtin.grep_tool import set_workspace as set_grep_workspace
 from personal_agent.tools.builtin.glob_tool import set_workspace as set_glob_workspace
 from personal_agent.tools.builtin.todo import set_todos_path
-from personal_agent.tools.builtin.shell import set_allow_network
+from personal_agent.tools.builtin.bash import set_allow_network
 from personal_agent.tools.audit import set_audit_path
 
 logger = logging.getLogger("personal_agent")
@@ -108,7 +108,7 @@ async def boot() -> None:
     import personal_agent.tools.builtin.glob_tool         # noqa
     import personal_agent.tools.builtin.todo              # noqa
     import personal_agent.tools.builtin.weather           # noqa
-    import personal_agent.tools.builtin.shell             # noqa
+    import personal_agent.tools.builtin.bash              # noqa
     import personal_agent.tools.builtin.random_tool       # noqa
     import personal_agent.tools.builtin.timer             # noqa
     import personal_agent.tools.builtin.json_tool         # noqa

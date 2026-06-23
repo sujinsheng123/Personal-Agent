@@ -139,7 +139,7 @@ def _tool_category(name: str) -> str:
     _CATEGORY_MAP: dict[str, str] = {
         "write": "write",
         "edit": "write",
-        "bash": "shell",
+        "bash": "bash",
     }
     return _CATEGORY_MAP.get(name, "write")
 

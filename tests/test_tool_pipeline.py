@@ -16,7 +16,7 @@ import pytest
 
 
 def test_shell_allowed_commands():
-    from personal_agent.tools.builtin.shell import _check_command
+    from personal_agent.tools.builtin.bash import _check_command
 
     # Safe commands should pass
     for cmd in ["ls -la", "cat file.txt", "grep pattern file", "git status",
@@ -33,7 +33,7 @@ def test_shell_allowed_commands():
 
 def test_shell_command_chaining_bypass():
     """Command chaining (&& || | ;) is now blocked — one command per call."""
-    from personal_agent.tools.builtin.shell import _check_command
+    from personal_agent.tools.builtin.bash import _check_command
 
     # All chain operators are blocked
     assert _check_command("whoami && ls") is not None     # blocked
@@ -48,7 +48,7 @@ def test_shell_command_chaining_bypass():
 
 
 def test_shell_network_blocked():
-    from personal_agent.tools.builtin.shell import _check_command, _allow_network
+    from personal_agent.tools.builtin.bash import _check_command, _allow_network
 
     assert _allow_network is False  # default should be false
 
@@ -60,7 +60,7 @@ def test_shell_network_blocked():
 
 
 def test_shell_dangerous_patterns():
-    from personal_agent.tools.builtin.shell import _check_command
+    from personal_agent.tools.builtin.bash import _check_command
 
     dangerous = [
         "rm -rf /",

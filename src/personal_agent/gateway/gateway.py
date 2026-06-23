@@ -281,9 +281,9 @@ class Gateway:
             # Granular: /allow write, /allow shell, /allow all
             parts = text.split()
             category = parts[1] if len(parts) > 1 else "write"
-            valid = {"write", "shell", "all"}
+            valid = {"write", "bash", "all"}
             if category not in valid:
-                return f"用法: /allow [write|shell|all]，当前有效类别: {', '.join(sorted(valid))}"
+                return f"用法: /allow [write|bash|all]，当前有效类别: {', '.join(sorted(valid))}"
             for agent in self._agent_cache.values():
                 if hasattr(agent, '_destructive_allowed'):
                     agent._destructive_allowed.add(category)

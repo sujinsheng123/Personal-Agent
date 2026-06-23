@@ -147,14 +147,14 @@ def _audit(command: str, result: str, success: bool) -> None:
 
 # ── handler ──────────────────────────────────────────
 
-async def _shell(command: str, timeout: int = 30) -> str:
+async def _bash(command: str, timeout: int = 30) -> str:
     error = _check_command(command)
     if error:
         _audit(command, error, False)
         return error
 
     try:
-        proc = await asyncio.create_subprocess_shell(
+        proc = await asyncio.create_subprocess_bash(
             command,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
@@ -196,7 +196,7 @@ tool_registry.register(ToolEntry(
         },
         "required": ["command"],
     },
-    handler=_shell,
+    handler=_bash,
     toolset="builtin",
     is_parallel_safe=False,
     is_destructive=False,  # whitelist constrains safety
