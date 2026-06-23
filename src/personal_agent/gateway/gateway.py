@@ -291,6 +291,26 @@ class Gateway:
                     agent._interrupt_requested = True
             return "已停止。"
 
+        if text.startswith("/usage"):
+            # Show token usage + context stats for this session
+            agent = self._agent_cache.get(session_key)
+            if agent is None:
+                return "暂无会话数据。"
+            from personal_agent.llm.token_counter import context_usage
+            cu = context_usage([], agent._cached_system_prompt or "", agent.tools)
+            return (
+                f"📊 会话用量\n"
+                f"API 调用: {agent.session_api_calls} 次\n"
+                f"输入 tokens: {agent.session_prompt_tokens:,} (API 报告)\n"
+                f"输出 tokens: {agent.session_completion_tokens:,} (API 报告)\n"
+                f"\n📐 上下文窗口 (估算)\n"
+                f"已用: {cu['used']:,} / {cu['limit']:,} tokens ({cu['percent']}%)\n"
+                f"  system prompt: {cu['system']:,}\n"
+                f"  工具定义: {cu['tools']:,}\n"
+                f"剩余: {cu['remaining']:,} tokens\n"
+                f"\n🔧 本轮工具调用: {agent._tool_calls_this_turn} / {agent._max_tool_calls_per_turn}"
+            )
+
         if text.startswith("/help"):
             return (
                 "可用命令:\n"
