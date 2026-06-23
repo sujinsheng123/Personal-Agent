@@ -354,6 +354,13 @@ class Gateway:
                 f"\n🔧 本轮工具调用: {agent._tool_calls_this_turn} / {agent._max_tool_calls_per_turn}"
             )
 
+        if text.startswith("/export"):
+            session = await self._session_store.get_or_create(session_key, event.source)
+            export_path = self.config.agent_data_dir / "exports" / f"{session_key.replace(':', '_')}.jsonl"
+            export_path.parent.mkdir(parents=True, exist_ok=True)
+            count = await self._session_store.export(session.session_id, str(export_path))
+            return f"已导出 {count} 条对话 → {export_path}"
+
         if text.startswith("/help"):
             return (
                 "可用命令:\n"
@@ -361,6 +368,7 @@ class Gateway:
                 "/session <name> - 切换会话\n"
                 "/stop - 停止当前处理\n"
                 "/allow - 授权危险操作（如写文件）\n"
+                "/export - 导出当前会话（JSONL）\n"
                 "/help - 显示此帮助\n"
                 "/<skill-name> - 加载技能（如果可用）"
             )

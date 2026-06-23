@@ -168,3 +168,39 @@ class Database:
         async for r in row:
             return r["cnt"]
         return 0
+
+    async def export_jsonl(self, session_id: str, output_path: str) -> int:
+        """Export session as JSONL — user/assistant text only, no tool calls.
+
+        Each line: {"role": "user|assistant", "content": "text"}
+        Returns the number of messages exported.
+        """
+        rows = await self._conn.execute(
+            "SELECT role, content, tool_calls, tool_name, tool_call_id "
+            "FROM messages WHERE session_id = ? ORDER BY id",
+            (session_id,),
+        )
+        from pathlib import Path
+        Path(output_path).parent.mkdir(parents=True, exist_ok=True)
+        count = 0
+        with open(output_path, "w", encoding="utf-8") as f:
+            async for row in rows:
+                role = row["role"]
+                # Skip tool messages
+                if row["tool_call_id"] or row["tool_name"]:
+                    continue
+                # Extract text from content blocks
+                try:
+                    blocks = json.loads(row["content"])
+                    if isinstance(blocks, list):
+                        texts = [b.get("text", "") for b in blocks if isinstance(b, dict) and b.get("type") == "text"]
+                        content = " ".join(texts)
+                    else:
+                        content = str(blocks)
+                except (json.JSONDecodeError, TypeError):
+                    content = str(row["content"])
+                if not content.strip():
+                    continue
+                f.write(json.dumps({"role": role, "content": content}, ensure_ascii=False) + "\n")
+                count += 1
+        return count

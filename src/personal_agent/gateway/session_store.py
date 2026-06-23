@@ -141,6 +141,10 @@ class SessionStore:
         results.sort(key=lambda x: x.get("last_active", ""), reverse=True)
         return results
 
+    async def export(self, session_id: str, output_path: str) -> int:
+        """Export session as JSONL — user/assistant text only."""
+        return await self._db.export_jsonl(session_id, output_path)
+
     async def expire_sessions(self, max_age_days: int = 30) -> int:
         """Remove sessions inactive for > max_age_days. Returns count removed."""
         import time
