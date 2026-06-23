@@ -16,6 +16,8 @@ dependencies = [
     "croniter>=3.0",
     "pyyaml>=6.0.3",
     "python-dotenv>=1.2.2",
+    "fastembed>=0.8.0",
+    "pip-system-certs>=5.3",
 ]
 
 [build-system]

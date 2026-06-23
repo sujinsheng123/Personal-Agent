@@ -20,7 +20,8 @@ toolsets:
   enabled: ["all"]            # ["all"] | ["web","terminal","utility"] | etc.
 
 memory:
-  provider: "file"           # file | rag (future)
+  provider: "file"           # built-in memory provider
+  external_provider: "embedding"  # external: "none" | "embedding"
 
 cron:
   enabled: false

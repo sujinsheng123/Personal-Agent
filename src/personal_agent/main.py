@@ -66,10 +66,18 @@ async def boot() -> None:
     await db.initialize()
 
     # ── 5. Memory ──────────────────────────────────────
-    memory_path = data_dir / "memory" / "MEMORY.md"
+    memory_path = data_dir / "memory" / "SYSTEM.md"
     set_memory_path(memory_path)
-    memory_store = FileMemoryProvider(memory_path)
-    memory_manager = MemoryManager(builtin=memory_store)
+    memory_store = FileMemoryProvider(memory_path)   # system prompt material
+
+    external_store = None
+    if settings.memory_external_provider == "embedding":
+        from personal_agent.memory.embedding_store import EmbeddingMemoryProvider, set_external_instance
+        external_store = EmbeddingMemoryProvider(data_dir / "memory")
+        set_external_instance(external_store)
+        logger.info("External memory: embedding (BAAI/bge-small-zh-v1.5)")
+
+    memory_manager = MemoryManager(builtin=memory_store, external=external_store)
 
     # ── 6. File tool sandbox ───────────────────────────
     set_file_base(data_dir)

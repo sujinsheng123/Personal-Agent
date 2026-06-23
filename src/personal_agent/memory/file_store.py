@@ -9,7 +9,7 @@ from personal_agent.memory.base import MemoryProvider
 
 logger = logging.getLogger(__name__)
 
-_MEMORY_FILE = Path("./data/memory/MEMORY.md")
+_MEMORY_FILE = Path("./data/memory/SYSTEM.md")
 
 
 def set_memory_path(path: Path) -> None:
@@ -44,10 +44,11 @@ class FileMemoryProvider(MemoryProvider):
         return self._read_entries()
 
     def get_system_prompt_text(self) -> str:
+        """Hand-curated system material injected into system prompt. Stable, small."""
         entries = self._read_entries()
         if not entries:
             return ""
-        lines = ["用户记忆（请参考以下信息）："]
+        lines = ["系统提示补充："]
         for e in entries:
             lines.append(f"- {e}")
         return "\n".join(lines)
@@ -77,15 +78,28 @@ from personal_agent.tools.registry import tool_registry
 _default_store = FileMemoryProvider()
 
 
+def _get_ext_store():
+    try:
+        from personal_agent.memory.embedding_store import get_external_instance
+        return get_external_instance()
+    except Exception:
+        return None
+
+
 async def _memory_tool(action: str, content: str = "", query: str = "") -> str:
+    # External provider is the primary store (semantic, scalable).
+    # Builtin MEMORY.md is hand-curated system material — never auto-written.
+    ext = _get_ext_store()
+    store = ext if ext else _default_store
+
     if action == "add":
-        await _default_store.save(content)
+        await store.save(content)
         return f"Memory saved: {content}"
     elif action == "search":
-        results = await _default_store.search(query)
+        results = await store.search(query)
         return "\n".join(results) if results else "No matching memories."
     elif action == "list":
-        entries = await _default_store.load_all()
+        entries = await store.load_all()
         return "\n".join(entries) if entries else "No memories yet."
     return f"Unknown action: {action}"
 
