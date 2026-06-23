@@ -139,6 +139,8 @@ class Gateway:
         # 5. Mark running → process → cleanup
         self._running_agents[session_key] = True
         try:
+            from personal_agent.memory.file_store import set_current_session
+            set_current_session(session_key)
             return await self._handle_message_with_agent(event, session_key)
         finally:
             self._running_agents.pop(session_key, None)

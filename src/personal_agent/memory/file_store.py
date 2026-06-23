@@ -16,10 +16,36 @@ logger = logging.getLogger(__name__)
 _SYSTEM_DIR = Path("./data/system")
 _SEPARATOR = "\n§\n"
 
+# Per-session profile override — set by Gateway before each agent turn.
+# Maps session_key → profile directory name under data/system/.
+# e.g. {"wechat:...": "girlfriend"} → loads data/system/girlfriend/
+_profile_map: dict[str, str] = {}
+_current_session_key: str = ""
+
 
 def set_system_dir(path: Path) -> None:
     global _SYSTEM_DIR
     _SYSTEM_DIR = path
+
+
+def set_profile_map(mapping: dict[str, str]) -> None:
+    """Set session_key → profile name mapping (from config.yaml)."""
+    global _profile_map
+    _profile_map = mapping
+
+
+def set_current_session(session_key: str) -> None:
+    """Set current session key for profile-aware memory operations."""
+    global _current_session_key
+    _current_session_key = session_key
+
+
+def _get_profile_dir() -> Path | None:
+    """Return the profile directory for the current session, or None."""
+    profile = _profile_map.get(_current_session_key, "")
+    if profile:
+        return _SYSTEM_DIR / profile
+    return None
 
 
 class FileMemoryProvider(MemoryProvider):
@@ -50,12 +76,17 @@ class FileMemoryProvider(MemoryProvider):
         return self._read_entries("MEMORY.md") + self._read_entries("USER.md")
 
     def get_system_prompt_text(self) -> str:
-        """Combine all .md files from data/system/ into system prompt."""
-        if not self._dir.exists():
+        """Combine all .md files from data/system/ into system prompt.
+
+        Profile-aware: if the current session has a profile (e.g. 'girlfriend'),
+        loads from data/system/<profile>/ instead of the default directory.
+        """
+        profile_dir = _get_profile_dir() or self._dir
+        if not profile_dir.exists():
             return ""
 
         parts = []
-        for f in sorted(self._dir.glob("*.md")):
+        for f in sorted(profile_dir.glob("*.md")):
             try:
                 text = f.read_text(encoding="utf-8").strip()
                 if text:
@@ -100,6 +131,10 @@ def _file_title(stem: str) -> str:
         "SYSTEM": "系统补充",
         "MEMORY": "用户画像",
         "USER": "用户偏好",
+        "IDENTITY": "身份与边界",
+        "RELATIONSHIP": "关系状态",
+        "INTIMACY": "亲密等级指南",
+        "BOOTSTRAP": "引导上下文",
     }
     return TITLES.get(stem.upper(), stem)
 
@@ -120,9 +155,14 @@ def _get_ext_store():
 
 async def _memory_tool(action: str, content: str = "", query: str = "",
                        old_text: str = "", target: str = "memory") -> str:
-    """Hermes-style memory tool: internal + external simultaneous write."""
+    """Hermes-style memory tool: internal + external simultaneous write.
+
+    Profile-aware: writes to the current session's profile directory
+    (e.g. data/system/girlfriend/MEMORY.md) when a profile is active.
+    """
     ext = _get_ext_store()
-    internal = FileMemoryProvider()  # always available
+    profile_dir = _get_profile_dir()
+    internal = FileMemoryProvider(profile_dir if profile_dir else _SYSTEM_DIR)
 
     if action == "add":
         if target == "user":

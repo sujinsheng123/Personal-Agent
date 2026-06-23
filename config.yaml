@@ -41,6 +41,12 @@ auth:
   admins: []                  # admin user IDs (always pass, no challenge)
   allowed_users: []           # pre-approved user IDs (skip pairing)
 
+profiles:
+  # Map session_key → profile directory under data/system/
+  # The matching profile's .md files replace the default system prompt.
+  # Example: "wechat:<wx_id>:<wx_id>": "girlfriend"
+  # Fill in your own session keys below.
+
 mcp:
   enabled: true               # enable MCP client subsystem
   servers:

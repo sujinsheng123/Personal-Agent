@@ -145,6 +145,10 @@ async def boot() -> None:
     db = Database(data_dir / "state.db")
     await db.initialize()
 
+    # ── 4.5. Profile routing ────────────────────────
+    from personal_agent.memory.file_store import set_profile_map
+    set_profile_map(settings.profile_map)
+
     # ── 5. Memory ──────────────────────────────────────
     system_dir = data_dir / "system"
     set_system_dir(system_dir)

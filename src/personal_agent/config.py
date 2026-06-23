@@ -96,3 +96,10 @@ class Settings:
         self.auth_enabled: bool = auth.get("enabled", False)
         self.auth_admins: list[str] = auth.get("admins", [])
         self.auth_allowed_users: list[str] = auth.get("allowed_users", [])
+
+        # ── Profiles (from config.yaml) ──
+        profiles = yaml_cfg.get("profiles", {})
+        self.profile_map: dict[str, str] = {
+            k: v for k, v in profiles.items()
+            if k not in ("__comment__",)
+        }
