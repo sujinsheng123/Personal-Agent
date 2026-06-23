@@ -36,9 +36,14 @@ async def _run_agent(prompt, system_prompt="", schema="", max_tokens=2048):
     messages = [{"role": "user", "content": [{"type": "text", "text": prompt}]}]
     sys = system_prompt or "You are a focused sub-agent. Complete the task and return your result concisely."
 
-    safe_tools = [t for t in (_delegate_tools or []) if t.get("name") not in (
-        "sub_agent", "sub_parallel", "sub_pipeline", "workflow_run", "clarify", "confirm",
-    )]
+    # Sub-agents get read-only tools + safe utilities
+    _SUB_BLOCKED = {
+        "sub_agent", "sub_parallel", "sub_pipeline", "workflow_run",
+        "clarify", "confirm", "memory", "memory_ingest",
+        "write", "edit", "bash", "execute_code", "delegate_task",
+        "process_kill",
+    }
+    safe_tools = [t for t in (_delegate_tools or []) if t.get("name") not in _SUB_BLOCKED]
 
     try:
         response = await asyncio.wait_for(
@@ -52,13 +57,23 @@ async def _run_agent(prompt, system_prompt="", schema="", max_tokens=2048):
 
     if response.tool_calls:
         from personal_agent.tools.executor import execute_tool_calls
+
+        # Build a restricted agent context so sub-agent tools go through
+        # the full execution pipeline (scope gate + hooks + dispatch).
+        # Sub-agents get NO destructive privileges — write/edit/bash blocked.
+        class _SubAgentCtx:
+            _destructive_allowed: set = set()
+            _tool_calls_this_turn: int = 0
+            _max_tool_calls_per_turn: int = 10
+
+        _sub_ctx = _SubAgentCtx()
         blocks = []
         if response.text:
             blocks.append({"type": "text", "text": response.text})
         for tc in response.tool_calls:
             blocks.append({"type": "tool_use", "id": tc["id"], "name": tc["name"], "input": tc["input"]})
         messages.append({"role": "assistant", "content": blocks})
-        await execute_tool_calls(response.tool_calls, messages)
+        await execute_tool_calls(response.tool_calls, messages, agent=_sub_ctx)
         messages.append({"role": "user", "content": [{"type": "text", "text": "Tools done. Now give your final answer."}]})
         try:
             response = await asyncio.wait_for(
