@@ -106,6 +106,7 @@ async def boot() -> None:
     import personal_agent.tools.builtin.grep_tool         # noqa
     import personal_agent.tools.builtin.glob_tool         # noqa
     import personal_agent.tools.builtin.todo              # noqa
+    import personal_agent.tools.builtin.task              # noqa
     import personal_agent.tools.builtin.weather           # noqa
     import personal_agent.tools.builtin.bash              # noqa
     import personal_agent.tools.builtin.random_tool       # noqa

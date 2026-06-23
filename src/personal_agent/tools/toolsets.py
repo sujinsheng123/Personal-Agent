@@ -13,7 +13,7 @@ _CORE_TOOLS: set[str] = {
     "skill_search", "skill_load",
     "clarify", "execute_code", "delegate_task",
     "process_list", "process_kill", "process_wait",
-    "confirm",
+    "confirm", "task",
 }
 
 # Toolset groups — name → list of tool names
