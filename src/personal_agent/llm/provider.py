@@ -35,11 +35,9 @@ def _detect_context_window(model: str) -> int:
         return 128_000
     if "32k" in m:
         return 32_000
-    if "deepseek" in m and "v4" in m:
+    if "deepseek" in m:  # all DeepSeek models = 1M (v4, r1, chat)
         return 1_000_000
-    if "deepseek" in m and ("v3" in m or "r1" in m):
-        return 128_000
-    return 64_000  # default: deepseek-chat, etc.
+    return 64_000
 
 
 # ── Provider Registry ──────────────────────────────────
@@ -87,22 +85,31 @@ provider_registry = ProviderRegistry()
 
 # ── Builtin provider factories ─────────────────────────
 
+def _build_context_window(config) -> int:
+    if config.llm_context_window > 0:
+        return config.llm_context_window
+    return _detect_context_window(config.llm_model)
+
+
 def _deepseek_factory(config) -> ProviderProfile:
     return ProviderProfile(
         name="deepseek", base_url=config.llm_base_url, api_key=config.llm_api_key,
         model=config.llm_model, max_tokens=config.llm_max_tokens,
+        context_window=_build_context_window(config),
     )
 
 def _openai_factory(config) -> ProviderProfile:
     return ProviderProfile(
         name="openai", base_url=config.llm_base_url, api_key=config.llm_api_key,
         model=config.llm_model, max_tokens=config.llm_max_tokens,
+        context_window=_build_context_window(config),
     )
 
 def _anthropic_factory(config) -> ProviderProfile:
     return ProviderProfile(
         name="anthropic", base_url=config.llm_base_url, api_key=config.llm_api_key,
         model=config.llm_model, max_tokens=config.llm_max_tokens,
+        context_window=_build_context_window(config),
     )
 
 def _openrouter_factory(config) -> ProviderProfile:
@@ -113,6 +120,7 @@ def _openrouter_factory(config) -> ProviderProfile:
         api_key=config.llm_api_key,
         model=config.llm_model,
         max_tokens=config.llm_max_tokens,
+        context_window=_build_context_window(config),
         extra_headers={
             "HTTP-Referer": "http://localhost",
             "X-Title": "Personal Agent",
