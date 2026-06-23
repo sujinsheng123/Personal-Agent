@@ -25,9 +25,16 @@ class Hooks:
         self.on_before_send = []
 
     async def fire(self, name: str, *args: Any, **kwargs: Any) -> Any:
-        """Call all registered hooks in order. Returns last non-None result."""
+        """Call all registered hooks in order. Returns last non-None result.
+
+        When no hooks are registered, returns the first positional arg
+        (pass-through) — None means "nothing changed", not "blocked".
+        """
         result = None
-        for hook in getattr(self, name, []):
+        hooks_list = getattr(self, name, [])
+        if not hooks_list:
+            return args[0] if args else None
+        for hook in hooks_list:
             r = await hook(*args, **kwargs)
             if r is not None:
                 result = r
