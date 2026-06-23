@@ -177,28 +177,27 @@ class MCPClient:
         return "\n".join(texts)
 
     async def disconnect(self) -> None:
-        """Gracefully terminate the subprocess."""
+        """Gracefully terminate the subprocess, draining all pipes."""
         self._connected = False
         proc = self._process
         self._process = None
         self._tools.clear()
         if proc is None:
             return
-        # Close all pipes first to avoid "closed pipe" errors on Windows
-        for pipe in (proc.stdin, proc.stdout, proc.stderr):
-            if pipe is not None:
-                try:
-                    pipe.close()
-                except Exception:
-                    pass
+        # communicate() drains stdout+stderr and closes all pipes cleanly
+        # — avoids "I/O operation on closed pipe" on Windows ProactorEventLoop
         try:
             proc.terminate()
-            await asyncio.wait_for(proc.wait(), timeout=5.0)
+            await asyncio.wait_for(proc.communicate(), timeout=5.0)
         except asyncio.TimeoutError:
             proc.kill()
-            await proc.wait()
+            await proc.communicate()
         except Exception:
-            pass
+            try:
+                proc.kill()
+                await proc.communicate()
+            except Exception:
+                pass
 
     # ── JSON-RPC internals ──────────────────────────────
 
