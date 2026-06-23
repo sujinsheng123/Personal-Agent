@@ -15,28 +15,73 @@ import pytest
 @pytest.mark.asyncio
 async def test_clarify_question_only():
     from personal_agent.tools.builtin.clarify import _clarify
+    import json
 
-    result = await _clarify("Do you want to continue?")
+    q = json.dumps([{
+        "header": "Continue",
+        "question": "Do you want to continue?",
+        "options": [],
+    }])
+    result = await _clarify(q)
     assert "Do you want to continue?" in result
-    assert "CLARIFY" in result
+    assert "Other" in result
 
 
 @pytest.mark.asyncio
 async def test_clarify_with_choices():
     from personal_agent.tools.builtin.clarify import _clarify
+    import json
 
-    result = await _clarify("What language?", choices=["Python", "Rust"])
-    assert "1. Python" in result
-    assert "2. Rust" in result
-    assert "choice" in result.lower()
+    q = json.dumps([{
+        "header": "Language",
+        "question": "What language?",
+        "options": [
+            {"label": "Python", "description": "Great for AI"},
+            {"label": "Rust", "description": "Fast and safe"},
+        ],
+    }])
+    result = await _clarify(q)
+    assert "1. **Python**" in result
+    assert "2. **Rust**" in result
 
 
 @pytest.mark.asyncio
-async def test_clarify_freeform_disabled():
+async def test_clarify_multi_question():
+    from personal_agent.tools.builtin.clarify import _clarify
+    import json
+
+    q = json.dumps([
+        {"header": "A", "question": "First?", "options": [{"label": "X", "description": ""}]},
+        {"header": "B", "question": "Second?", "options": [{"label": "Y", "description": ""}]},
+    ])
+    result = await _clarify(q)
+    assert "## A" in result
+    assert "## B" in result
+    assert "---" in result
+
+
+@pytest.mark.asyncio
+async def test_clarify_multi_select():
+    from personal_agent.tools.builtin.clarify import _clarify
+    import json
+
+    q = json.dumps([{
+        "header": "Features",
+        "question": "Which features?",
+        "options": [{"label": "A", "description": ""}, {"label": "B", "description": ""}],
+        "multiSelect": True,
+    }])
+    result = await _clarify(q)
+    assert "multiple options" in result.lower()
+
+
+@pytest.mark.asyncio
+async def test_clarify_invalid_json():
     from personal_agent.tools.builtin.clarify import _clarify
 
-    result = await _clarify("Pick one", choices=["A", "B"], allow_freeform=False)
-    assert "your own answer" not in result
+    result = await _clarify("not json")
+    assert "Error" in result
+    assert "invalid" in result.lower()
 
 
 # ── process ─────────────────────────────────────────────
