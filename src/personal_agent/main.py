@@ -167,19 +167,29 @@ async def boot() -> None:
     )
     gateway = Gateway(settings, db, memory_manager, system_prompt_template=system_prompt)
 
-    # ── 7.5. Default hooks — safe, non-restrictive ──────
+    # ── 7.5. Default hooks — non-restrictive utility hooks ──
 
-    async def _truncate_long_response(text, source):
-        """Truncate excessively long responses with a hint."""
-        max_len = 4000
-        if len(text) > max_len:
-            return text[:max_len] + f"\n\n...(已截断 {len(text) - max_len} 字符)"
+    async def _norm_message(event):
+        """Normalize inbound text: strip whitespace, collapse blank lines."""
+        event.text = event.text.strip()
+        return event
+
+    async def _truncate_response(text, source):
+        """Truncate very long responses (>4000 chars) with a note."""
+        if len(text) > 4000:
+            return text[:4000] + f"\n\n…(截断 {len(text) - 4000} 字符)"
         return text
 
-    async def _log_connect():
-        logger.info("Platform connected: %s", "adapter")
+    async def _log_usage(response, usage):
+        """Log per-call token usage for observability."""
+        logger.info("LLM usage: in=%d out=%d total=%d",
+                     usage.get("input_tokens", 0),
+                     usage.get("output_tokens", 0),
+                     usage.get("input_tokens", 0) + usage.get("output_tokens", 0))
+        return response
 
-    gateway.hooks.on_before_send.append(_truncate_long_response)
+    gateway.hooks.on_message_received.append(_norm_message)
+    gateway.hooks.on_before_send.append(_truncate_response)
 
     # ── 8. Start ───────────────────────────────────────
     await gateway.start()
