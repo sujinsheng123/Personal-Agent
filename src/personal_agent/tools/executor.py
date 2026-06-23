@@ -98,17 +98,16 @@ async def execute_tool_calls(
                 results[idx] = f"Error: {exc}"
             i += 1
 
-    # ── append results in ORIGINAL order ──
+    # ── append ALL results as ONE user message (Anthropic requires this) ──
+    result_blocks = []
     for i, tc in enumerate(tool_calls):
         result_text = results.get(i, "Error: tool execution skipped")
-        messages.append({
-            "role": "user",
-            "content": [{
-                "type": "tool_result",
-                "tool_use_id": tc["id"],
-                "content": result_text,
-            }],
+        result_blocks.append({
+            "type": "tool_result",
+            "tool_use_id": tc["id"],
+            "content": result_text,
         })
+    messages.append({"role": "user", "content": result_blocks})
 
 
 async def _exec_one(tc: dict, *, agent: Any = None, hooks: Any = None) -> str:
