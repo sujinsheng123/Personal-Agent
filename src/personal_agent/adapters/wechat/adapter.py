@@ -88,7 +88,7 @@ class WeChatAdapter(BasePlatformAdapter):
         self._send_session = aiohttp.ClientSession(trust_env=True, timeout=t)
         self._load_sync_buf()
         self._poll_task = asyncio.create_task(self._poll_loop())
-        logger.info("WeChat adapter connected (account=%s..., base=%s)", self._account_id[:12], self._base_url)
+        logger.info("✅ WeChat connected — account=%s..., polling started", self._account_id[:12])
 
     async def disconnect(self) -> None:
         if self._poll_task:
@@ -115,9 +115,9 @@ class WeChatAdapter(BasePlatformAdapter):
                     "from_user_id": "",
                     "to_user_id": chat_id,
                     "client_id": client_id,
-                    "message_type": 1,
-                    "message_state": 2,
-                    "item_list": [{"msg_type": "text", "content": content}],
+                    "message_type": 2,   # MSG_TYPE_BOT
+                    "message_state": 2,   # MSG_STATE_FINISH
+                    "item_list": [{"type": 1, "text_item": {"text": content}}],
                 },
             }
             result = await self._api("ilink/bot/sendmessage", payload, self._send_session, API_TIMEOUT_MS)
@@ -152,11 +152,13 @@ class WeChatAdapter(BasePlatformAdapter):
                     self._save_sync_buf()
                     msgs = result.get("msgs") or []
                     if msgs:
-                        logger.debug("WeChat poll: %d message(s)", len(msgs))
+                        logger.info("WeChat poll: %d message(s) received", len(msgs))
                     for msg in msgs:
                         asyncio.create_task(self._process_message(msg))
                 else:
                     failures += 1
+                    logger.warning("WeChat poll error: ret=%s errcode=%s errmsg=%s",
+                                   result.get("ret"), result.get("errcode"), result.get("errmsg", ""))
                     errcode = result.get("errcode")
                     if errcode == -14:
                         logger.warning("WeChat session expired, pausing 10min")
@@ -190,10 +192,12 @@ class WeChatAdapter(BasePlatformAdapter):
             text = ""
             media = []
             for item in (msg.get("item_list") or []):
-                if item.get("msg_type") == "text":
-                    text += item.get("content", "")
-                elif item.get("msg_type") in ("image", "video", "file", "voice"):
-                    media.append(f"[{item.get('msg_type')}]")
+                itype = item.get("type") or item.get("msg_type")
+                if itype == 1 or itype == "text":  # ITEM_TEXT
+                    ti = item.get("text_item") or {}
+                    text += ti.get("text", "") or item.get("content", "")
+                elif itype in (2, 3, 4, "image", "video", "file", "voice"):
+                    media.append(f"[{itype}]")
 
             combined = text.strip()
             if not combined:
