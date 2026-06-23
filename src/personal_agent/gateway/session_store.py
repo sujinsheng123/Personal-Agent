@@ -64,27 +64,9 @@ class SessionStore:
         new_msgs = messages[previous_count:]
         if not new_msgs:
             return
-        from personal_agent.agent.finalize import finalize_turn
-        # Simple inline finalize — skip full finalize_turn which needs ctx
+        from personal_agent.agent.finalize import unpack_message
         for msg in new_msgs:
-            role = msg["role"]
-            content = ""
-            tool_calls = None
-            tool_name = None
-            tool_call_id = None
-            if isinstance(msg.get("content"), list):
-                for block in msg["content"]:
-                    if block.get("type") == "text":
-                        content += block.get("text", "")
-                    elif block.get("type") == "tool_use":
-                        tool_calls = tool_calls or []
-                        tool_calls.append({"id": block.get("id"), "name": block.get("name"), "input": block.get("input", {})})
-                        tool_name = block.get("name")
-                    elif block.get("type") == "tool_result":
-                        content = str(block.get("content", ""))
-                        tool_call_id = block.get("tool_use_id", "")
-            elif isinstance(msg.get("content"), str):
-                content = msg["content"]
+            role, content, tool_calls, tool_name, tool_call_id = unpack_message(msg)
             await self._db.save_message(session_id, role, content, tool_calls, tool_name, tool_call_id)
 
         await self._db.update_last_active(session_id, increment_message=True)
@@ -120,25 +102,9 @@ class SessionStore:
         await self._db.create_session(entry)
 
         # Persist compressed messages to new session
+        from personal_agent.agent.finalize import unpack_message
         for msg in compressed_messages:
-            role = msg.get("role", "user")
-            content = ""
-            tool_calls = None
-            tool_name = None
-            tool_call_id = None
-            if isinstance(msg.get("content"), list):
-                for block in msg["content"]:
-                    if block.get("type") == "text":
-                        content += block.get("text", "")
-                    elif block.get("type") == "tool_use":
-                        tool_calls = tool_calls or []
-                        tool_calls.append({"id": block.get("id", ""), "name": block.get("name", ""), "input": block.get("input", {})})
-                        tool_name = block.get("name")
-                    elif block.get("type") == "tool_result":
-                        content = str(block.get("content", ""))
-                        tool_call_id = block.get("tool_use_id", "")
-            elif isinstance(msg.get("content"), str):
-                content = msg["content"]
+            role, content, tool_calls, tool_name, tool_call_id = unpack_message(msg)
             await self._db.save_message(new_id, role, content, tool_calls, tool_name, tool_call_id)
 
         # Link chain

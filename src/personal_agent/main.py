@@ -135,8 +135,6 @@ def main() -> None:
 def _run_cli(message: str) -> None:
     """Interactive CLI mode for debugging without a platform."""
     import asyncio
-    from personal_agent.llm.provider import ProviderProfile
-    from personal_agent.llm.anthropic import AnthropicMessagesTransport
     from personal_agent.agent.agent import init_agent
     from personal_agent.agent.context import build_turn_context
     from personal_agent.agent.loop import run_conversation
@@ -147,12 +145,11 @@ def _run_cli(message: str) -> None:
 
     async def _run():
         settings = Settings()
-        provider = ProviderProfile(
-            name=settings.llm_provider, base_url=settings.llm_base_url,
-            api_key=settings.llm_api_key, model=settings.llm_model,
-            max_tokens=settings.llm_max_tokens,
-        )
-        transport = AnthropicMessagesTransport(provider)
+        from personal_agent.llm.provider import ProviderProfile, provider_registry
+        from personal_agent.llm.transport_registry import transport_registry
+        provider = provider_registry.get(settings.llm_provider, settings)
+        api_mode = provider_registry.detect_api_mode(settings.llm_base_url, settings.llm_provider)
+        transport = transport_registry.get(api_mode, provider)
         memory = FileMemoryProvider(settings.agent_data_dir / "memory" / "MEMORY.md")
         memory_manager = MemoryManager(builtin=memory)
         agent = init_agent(transport, provider, memory_manager=memory_manager,

@@ -1,4 +1,13 @@
-"""run_conversation — the core while loop: LLM call → parse → tools → continue."""
+"""run_conversation — the core while loop: LLM call → parse → tools → continue.
+
+Retry strategies (6 types, Hermes pattern):
+  empty_content_retries   — LLM returned no text, no tool_calls → nudge "请继续。"
+  invalid_tool_retries    — tool_call has empty input → nudge with bad tool names
+  invalid_json_retries    — response failed to parse as JSON → nudge to retry
+  post_tool_empty_retried — after tools ran, LLM returned empty → nudge once
+  incomplete_scratchpad_retries — Anthropic-specific (reserved)
+  thinking_prefill_retries      — thinking block prefill failed (reserved)
+"""
 
 from __future__ import annotations
 
@@ -12,6 +21,8 @@ logger = logging.getLogger(__name__)
 
 async def run_conversation(agent, ctx) -> dict:
     """Execute the agent while loop. Returns final result dict."""
+    just_executed_tools = False
+
     while agent._iteration_budget > 0:
         if agent._interrupt_requested:
             logger.info("Agent interrupted by user")
@@ -64,7 +75,18 @@ async def run_conversation(agent, ctx) -> dict:
                 "completed": False,
             }
         except Exception as exc:
-            logger.exception("LLM call failed")
+            # ── retry: invalid JSON / parse error ──
+            if _looks_like_parse_error(exc) and \
+               agent._retry.invalid_json_retries < agent._retry.MAX_INVALID_JSON:
+                agent._retry.invalid_json_retries += 1
+                ctx.messages.append({
+                    "role": "user",
+                    "content": [{"type": "text", "text":
+                        "Your previous response was malformed. Please retry with a valid response."}],
+                })
+                logger.debug("Invalid JSON retry %d: %s", agent._retry.invalid_json_retries, exc)
+                continue
+            logger.exception("LLM call failed (non-retryable)")
             return {
                 "final_response": f"抱歉，模型调用出错了：{exc}",
                 "messages": ctx.messages,
@@ -83,6 +105,19 @@ async def run_conversation(agent, ctx) -> dict:
 
         # ── retry: empty response ──
         if not response.text and not response.tool_calls:
+            # Post-tool empty: specific retry (different nudge)
+            if just_executed_tools and not agent._retry.post_tool_empty_retried:
+                agent._retry.post_tool_empty_retried = True
+                ctx.messages.append({
+                    "role": "user",
+                    "content": [{"type": "text", "text":
+                        "You just executed tools but gave no response. "
+                        "Please provide a summary of what was done and the results."}],
+                })
+                logger.debug("Post-tool empty retry")
+                just_executed_tools = False
+                continue
+            # Generic empty: retry with continue nudge
             if agent._retry.empty_content_retries < agent._retry.MAX_EMPTY_CONTENT:
                 agent._retry.empty_content_retries += 1
                 ctx.messages.append({
@@ -90,6 +125,7 @@ async def run_conversation(agent, ctx) -> dict:
                     "content": [{"type": "text", "text": "请继续。"}],
                 })
                 logger.debug("Empty response retry %d", agent._retry.empty_content_retries)
+                just_executed_tools = False
                 continue
             return {
                 "final_response": "(empty response from model)",
@@ -114,6 +150,7 @@ async def run_conversation(agent, ctx) -> dict:
                         f"Please retry with valid JSON arguments."}],
                 })
                 logger.debug("Invalid tool retry %d: %s", agent._retry.invalid_tool_retries, bad_names)
+                just_executed_tools = False
                 continue
 
         # ── no tool_calls → done ──
@@ -138,8 +175,9 @@ async def run_conversation(agent, ctx) -> dict:
         ctx.messages.append({"role": "assistant", "content": assistant_blocks})
 
         await execute_tool_calls(response.tool_calls, ctx.messages, agent=agent, hooks=agent.hooks)
+        just_executed_tools = True
 
-        # ── retry: post-tool empty ──
+        # ── iteration budget check ──
         agent._iteration_budget -= 1
         if agent._iteration_budget <= 0:
             ctx.messages.append({
@@ -161,6 +199,14 @@ async def run_conversation(agent, ctx) -> dict:
         "api_calls": agent.session_api_calls,
         "completed": True,
     }
+
+
+def _looks_like_parse_error(exc: Exception) -> bool:
+    """Check if an exception is likely a JSON/parse error that should be retried."""
+    msg = str(exc).lower()
+    keywords = ("json", "parse", "decode", "malformed", "unexpected token",
+                "invalid character", "expecting")
+    return any(kw in msg for kw in keywords)
 
 
 async def _build_api_messages(agent, ctx) -> list[dict]:

@@ -45,9 +45,11 @@ class TelegramAdapter(BasePlatformAdapter):
         await self._application.initialize()
         await self._application.start()
         self._bot = self._application.bot
+        await self.hooks.fire("on_connect")
         logger.info("Telegram adapter connected")
 
     async def disconnect(self) -> None:
+        await self.hooks.fire("on_disconnect")
         if self._application:
             try:
                 await self._application.stop()
@@ -107,6 +109,7 @@ class TelegramAdapter(BasePlatformAdapter):
 
     def _bridge_update(self, update, message_type: str) -> None:
         """PTB callback thread → main loop via run_coroutine_threadsafe."""
+        import asyncio as _asyncio
         try:
             msg = update.message
             if msg is None or not msg.text:
@@ -128,14 +131,25 @@ class TelegramAdapter(BasePlatformAdapter):
                 message_id=str(msg.message_id),
                 timestamp=msg.date.timestamp() if msg.date else time.time(),
             )
-            asyncio.run_coroutine_threadsafe(
-                self._handle_telegram_event(event), self._loop
+            _asyncio.run_coroutine_threadsafe(
+                self._handle_telegram_event(event, update), self._loop
             )
         except Exception:
             logger.exception("Telegram bridge failed")
 
-    async def _handle_telegram_event(self, event: MessageEvent) -> None:
-        """Called on main loop — enters the base pipeline."""
+    async def _handle_telegram_event(self, event: MessageEvent, raw_update=None) -> None:
+        """Called on main loop — runs parse hooks then enters the base pipeline."""
+        # ── platform hook: on_before_parse ──
+        if raw_update is not None:
+            modified = await self.hooks.fire("on_before_parse", raw_update)
+            if modified is not None:
+                raw_update = modified
+
+        # ── platform hook: on_after_parse ──
+        modified = await self.hooks.fire("on_after_parse", raw_update, event)
+        if modified is not None:
+            event = modified
+
         self.handle_message(event)
 
     # ── typing indicator ──────────────────────────────

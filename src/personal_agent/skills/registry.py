@@ -1,4 +1,13 @@
-"""SkillRegistry — module-level singleton. Skills self-register on import."""
+"""SkillRegistry — module-level singleton. Skills self-register on import.
+
+Skill loading pipeline:
+  1. Lookup: name → SkillEntry
+  2. Path validation: resolve, prevent traversal outside SKILLS_DIR
+  3. Extension check: .md only
+  4. Size limit: max 50KB
+  5. Read content
+  6. Audit log
+"""
 
 from __future__ import annotations
 
@@ -12,6 +21,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 SKILLS_DIR = Path(__file__).resolve().parent / "builtin"
+MAX_SKILL_BYTES = 50_000
 
 
 class SkillRegistry:
@@ -38,19 +48,49 @@ class SkillRegistry:
         return "\n".join(lines)
 
     def load(self, name: str) -> str | None:
-        """Tier 2: load full skill markdown content."""
+        """Tier 2: load skill content through security pipeline. Returns content or None."""
         entry = self._entries.get(name)
         if entry is None:
             return None
+
         try:
+            # ── 1. Path resolution + traversal prevention ──
             path = Path(entry.path)
             if not path.is_absolute():
                 path = SKILLS_DIR / path
-            if path.exists():
-                return path.read_text(encoding="utf-8")
+            path = path.resolve()
+
+            if not str(path).startswith(str(SKILLS_DIR.resolve())):
+                logger.warning("Skill path traversal blocked: %s → %s", name, path)
+                return None
+
+            # ── 2. Extension check ──
+            if path.suffix.lower() != ".md":
+                logger.warning("Skill extension blocked: %s (%s)", name, path.suffix)
+                return None
+
+            # ── 3. Existence + size check ──
+            if not path.exists():
+                logger.warning("Skill file not found: %s → %s", name, path)
+                return None
+
+            file_size = path.stat().st_size
+            if file_size > MAX_SKILL_BYTES:
+                logger.warning("Skill too large: %s (%d bytes, max %d)", name, file_size, MAX_SKILL_BYTES)
+                return None
+
+            # ── 4. Read ──
+            content = path.read_text(encoding="utf-8")
+            logger.debug("Skill loaded: %s (%d bytes)", name, len(content))
+
+            # ── 5. Audit ──
+            from personal_agent.tools.audit import audit_log
+            audit_log("skill_load", name, f"{len(content)} bytes", True)
+
+            return content
         except Exception:
             logger.exception("Failed to load skill: %s", name)
-        return None
+            return None
 
 
 skill_registry = SkillRegistry()

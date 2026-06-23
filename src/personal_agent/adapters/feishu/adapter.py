@@ -94,12 +94,14 @@ class FeishuAdapter(BasePlatformAdapter):
         if not self._ws_ready.wait(timeout=10):
             logger.warning("Feishu WS connection timed out after 10s")
         else:
+            await self.hooks.fire("on_connect")
             logger.info("Feishu adapter connected")
 
         # Health check watcher: periodically verify WS is alive, reconnect if not
         self._health_check_task = asyncio.create_task(self._health_check_loop())
 
     async def disconnect(self) -> None:
+        await self.hooks.fire("on_disconnect")
         if hasattr(self, '_health_check_task'):
             self._health_check_task.cancel()
         if hasattr(self, '_stop_event'):
@@ -200,6 +202,11 @@ class FeishuAdapter(BasePlatformAdapter):
     async def _handle_feishu_event(self, event_data) -> None:
         """Parse Feishu v2 event (P2ImMessageReceiveV1) → MessageEvent → pipeline."""
         try:
+            # ── platform hook: on_before_parse ──
+            modified = await self.hooks.fire("on_before_parse", event_data)
+            if modified is not None:
+                event_data = modified
+
             inner = event_data.event
             if inner is None:
                 logger.debug("Feishu event dropped: inner is None, event_data=%s", type(event_data).__name__)
@@ -271,6 +278,10 @@ class FeishuAdapter(BasePlatformAdapter):
                 message_id=msg.message_id,
                 timestamp=float(msg.create_time or time.time()),
             )
+            # ── platform hook: on_after_parse ──
+            modified = await self.hooks.fire("on_after_parse", event_data, event)
+            if modified is not None:
+                event = modified
             self.handle_message(event)
         except Exception:
             logger.exception("_handle_feishu_event failed")
