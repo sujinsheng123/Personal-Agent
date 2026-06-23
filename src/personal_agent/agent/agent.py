@@ -47,6 +47,9 @@ class Agent:
     _iteration_budget: int = 0
     _retry: RetryState = field(default_factory=RetryState)
     _interrupt_requested: bool = False
+    _tool_calls_this_turn: int = 0
+    _destructive_allowed: set[str] = field(default_factory=set)  # {"write", "shell", "all"}
+    _max_tool_calls_per_turn: int = 20
 
     # ── pool split (same pool for MVP, separate later) ──
     _llm_pool: Any = None
@@ -60,6 +63,7 @@ def init_agent(
     memory_manager=None,
     compressor=None,
     max_iterations: int = 30,
+    max_tool_calls_per_turn: int = 20,
     system_prompt_template: str = "",
     enabled_toolsets: list[str] | None = None,
 ) -> Agent:
@@ -69,6 +73,7 @@ def init_agent(
     agent = Agent(
         model=provider.model,
         max_iterations=max_iterations,
+        _max_tool_calls_per_turn=max_tool_calls_per_turn,
         _transport=transport,
         _provider=provider,
         _memory_manager=memory_manager,

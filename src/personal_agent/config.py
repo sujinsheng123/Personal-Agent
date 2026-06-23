@@ -41,6 +41,7 @@ class Settings:
         # ── Agent (from config.yaml) ──
         agent = yaml_cfg.get("agent", {})
         self.max_iterations: int = agent.get("max_iterations", 30)
+        self.max_tool_calls_per_turn: int = agent.get("max_tool_calls_per_turn", 20)
 
         # ── Storage (from config.yaml) ──
         storage = yaml_cfg.get("storage", {})
@@ -67,6 +68,12 @@ class Settings:
         cron = yaml_cfg.get("cron", {})
         self.enable_cron: bool = cron.get("enabled", False)
         self.cron_jobs_path: Path = Path("data/cron")
+
+        # ── Security (from config.yaml) ──
+        security = yaml_cfg.get("security", {})
+        self.bash_allow_network: bool = security.get("bash_allow_network", False)
+        self.file_max_write_bytes: int = security.get("file_max_write_bytes", 100000)
+        self.audit_enabled: bool = security.get("audit_enabled", True)
 
         # ── Session (from config.yaml) ──
         session = yaml_cfg.get("session", {})

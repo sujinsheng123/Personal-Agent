@@ -13,8 +13,10 @@ from personal_agent.gateway.gateway import Gateway
 from personal_agent.memory.file_store import FileMemoryProvider, set_memory_path
 from personal_agent.memory.manager import MemoryManager
 from personal_agent.tools.builtin.file_read import set_allowed_base as set_file_base
-from personal_agent.tools.builtin.file_write import set_allowed_base as set_file_write_base
+from personal_agent.tools.builtin.file_write import set_allowed_base as set_file_write_base, set_max_write_bytes
 from personal_agent.tools.builtin.todo import set_todos_path
+from personal_agent.tools.builtin.shell import set_allow_network
+from personal_agent.tools.audit import set_audit_path
 
 logger = logging.getLogger("personal_agent")
 
@@ -71,7 +73,11 @@ async def boot() -> None:
     # ── 6. File tool sandbox ───────────────────────────
     set_file_base(data_dir)
     set_file_write_base(data_dir)
+    set_max_write_bytes(settings.file_max_write_bytes)
     set_todos_path(data_dir / "todos.json")
+    set_allow_network(settings.bash_allow_network)
+    if settings.audit_enabled:
+        set_audit_path(data_dir / "audit.log")
 
     # ── 7. Gateway ─────────────────────────────────────
     system_prompt = (
@@ -150,6 +156,7 @@ def _run_cli(message: str) -> None:
         memory_manager = MemoryManager(builtin=memory)
         agent = init_agent(transport, provider, memory_manager=memory_manager,
                           compressor=ContextCompressor(), max_iterations=settings.max_iterations,
+                          max_tool_calls_per_turn=settings.max_tool_calls_per_turn,
                           enabled_toolsets=settings.enabled_toolsets,
                           system_prompt_template='你是一个智能助手。优先使用工具获取实时信息和执行操作，不要凭记忆编造。用中文回复。')
 

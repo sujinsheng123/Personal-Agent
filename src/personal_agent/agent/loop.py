@@ -137,7 +137,7 @@ async def run_conversation(agent, ctx) -> dict:
             })
         ctx.messages.append({"role": "assistant", "content": assistant_blocks})
 
-        await execute_tool_calls(response.tool_calls, ctx.messages, hooks=agent.hooks)
+        await execute_tool_calls(response.tool_calls, ctx.messages, agent=agent, hooks=agent.hooks)
 
         # ── retry: post-tool empty ──
         agent._iteration_budget -= 1

@@ -3,6 +3,7 @@
 
 agent:
   max_iterations: 30
+  max_tool_calls_per_turn: 20
 
 storage:
   data_dir: "./data"
@@ -26,6 +27,11 @@ cron:
 
 session:
   expire_days: 30
+
+security:
+  bash_allow_network: false     # true = allow curl/pip/wget in bash tool
+  file_max_write_bytes: 100000  # max file_write size
+  audit_enabled: true           # log to data/audit.log
 
 auth:
   enabled: true               # true = enable auth (static + pairing)

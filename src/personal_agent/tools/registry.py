@@ -143,7 +143,8 @@ def _assemble_with_bridge(active: list[ToolEntry], is_core) -> list[dict]:
     if deferrable:
         result.append({
             "name": "tool_search",
-            "description": "Search available tools by keyword. Returns matching tool names and descriptions. Use when you need a tool but don't know its exact name.",
+            "description": "Search for tools by keyword. Returns matching tools with name, description, and "
+                          "full input_schema. After searching, call the matched tool DIRECTLY by name.",
             "input_schema": {
                 "type": "object",
                 "properties": {
@@ -154,7 +155,7 @@ def _assemble_with_bridge(active: list[ToolEntry], is_core) -> list[dict]:
         })
         result.append({
             "name": "tool_describe",
-            "description": "Get the full parameter schema for a specific tool. Use after tool_search to get exact parameters.",
+            "description": "Get the full parameter schema for a specific tool. Use after tool_search if you need more detail.",
             "input_schema": {
                 "type": "object",
                 "properties": {
@@ -165,7 +166,7 @@ def _assemble_with_bridge(active: list[ToolEntry], is_core) -> list[dict]:
         })
         result.append({
             "name": "tool_call",
-            "description": "Execute a tool by name with the given arguments. Use after tool_describe to get the correct parameter format.",
+            "description": "Execute a safe tool by name with arguments. Destructive tools are blocked — call them directly after /allow.",
             "input_schema": {
                 "type": "object",
                 "properties": {
@@ -276,8 +277,11 @@ def _bm25_search(catalog: list[dict], query: str, top_k: int = 5) -> list[dict]:
         scores.append({
             "name": catalog[i]["name"],
             "description": catalog[i]["description"],
+            "input_schema": catalog[i].get("input_schema", {}),
             "score": round(score, 3),
         })
 
     scores.sort(key=lambda x: x["score"], reverse=True)
-    return [{"name": s["name"], "description": s["description"]} for s in scores[:top_k] if s["score"] > 0]
+    return [{"name": s["name"], "description": s["description"],
+             "input_schema": s["input_schema"]}
+            for s in scores[:top_k] if s["score"] > 0]

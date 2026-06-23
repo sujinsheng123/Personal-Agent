@@ -215,6 +215,7 @@ class Gateway:
             memory_manager=self._memory_manager,
             compressor=compressor,
             max_iterations=self.config.max_iterations,
+            max_tool_calls_per_turn=self.config.max_tool_calls_per_turn,
             system_prompt_template=self._system_prompt_template,
             enabled_toolsets=self.config.enabled_toolsets,
         )
@@ -235,6 +236,18 @@ class Gateway:
             await self._session_store.delete_session(session_key)
             return "会话已重置。开始新的对话吧。"
 
+        if text.startswith("/allow"):
+            # Granular: /allow write, /allow shell, /allow all
+            parts = text.split()
+            category = parts[1] if len(parts) > 1 else "write"
+            valid = {"write", "shell", "all"}
+            if category not in valid:
+                return f"用法: /allow [write|shell|all]，当前有效类别: {', '.join(sorted(valid))}"
+            for agent in self._agent_cache.values():
+                if hasattr(agent, '_destructive_allowed'):
+                    agent._destructive_allowed.add(category)
+            return f"✅ 已授权 {category} 操作，本轮对话内有效。"
+
         if text.startswith("/stop"):
             # Set interrupt flag on all cached agents
             for agent in self._agent_cache.values():
@@ -247,20 +260,29 @@ class Gateway:
                 "可用命令:\n"
                 "/new - 重置对话\n"
                 "/stop - 停止当前处理\n"
+                "/allow - 授权危险操作（如写文件）\n"
                 "/help - 显示此帮助\n"
                 "/<skill-name> - 加载技能（如果可用）"
             )
 
-        # Skill command: /skill-name
+        # Skill command: /skill-name [message]
         skill_name = text[1:].split()[0]
         if skill_name:
             try:
                 from personal_agent.skills.registry import skill_registry
                 content = skill_registry.load(skill_name)
                 if content:
-                    # Inject as skill prompt — the agent loop handles this
-                    return f"[SKILL:{skill_name}]\n{content}\n\n请按照以上技能的指导处理用户消息。"
+                    # Extract remaining text after /skill-name
+                    parts = text.split(None, 1)
+                    remaining = parts[1] if len(parts) > 1 else ""
+                    # Inject skill as prefix to user's message, flow to agent
+                    event.text = (
+                        f"[技能: {skill_name}]\n\n{content}\n\n"
+                        f"---\n用户消息: {remaining or '你好'}"
+                    )
+                    return None  # pass to agent, NOT a direct reply
             except Exception:
+                pass
                 pass
 
         return None  # unknown command → pass to agent

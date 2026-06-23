@@ -28,8 +28,12 @@ async def _file_read(path: str) -> str:
         content = full.read_text(encoding="utf-8", errors="replace")
         if len(content) > MAX_READ_BYTES:
             content = content[:MAX_READ_BYTES] + f"\n\n...(truncated {len(content) - MAX_READ_BYTES} bytes)"
+        from personal_agent.tools.audit import audit_log
+        audit_log("file_read", path, f"{len(content)} bytes read", True)
         return content
     except Exception as e:
+        from personal_agent.tools.audit import audit_log
+        audit_log("file_read", path, str(e), False)
         return f"Error: {e}"
 
 

@@ -45,6 +45,8 @@ def build_turn_context(
     agent._iteration_budget = agent.max_iterations
     agent._retry.reset()
     agent._interrupt_requested = False
+    agent._tool_calls_this_turn = 0
+    agent._destructive_allowed.clear()
 
     # Refresh tools (if registry changed)
     from personal_agent.agent.agent import _refresh_tools, _build_system_prompt
