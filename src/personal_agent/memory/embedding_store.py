@@ -145,11 +145,8 @@ class EmbeddingMemoryProvider(MemoryProvider):
             from fastembed import TextEmbedding
             logger.info("Loading embedding model: %s", self._model_name)
             cache_dir = str(self._dir / ".fastembed_cache")
-            try:
-                self._model = TextEmbedding(model_name=self._model_name, cache_dir=cache_dir)
-            except Exception:
-                _fix_windows_symlinks(cache_dir)
-                self._model = TextEmbedding(model_name=self._model_name, cache_dir=cache_dir)
+            self._model = TextEmbedding(model_name=self._model_name, cache_dir=cache_dir)
+            _fix_windows_symlinks(cache_dir)  # snapshot for next time
             logger.info("Embedding model ready")
         return self._model
 

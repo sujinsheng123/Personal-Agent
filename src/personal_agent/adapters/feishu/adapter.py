@@ -229,6 +229,22 @@ class FeishuAdapter(BasePlatformAdapter):
                            getattr(msg, "message_type", "?"), getattr(msg, "chat_id", "?"))
                 return
 
+            chat_type = msg.chat_type or "dm"
+            # ── @ detection: only respond to @mentions in group chats ──
+            if chat_type == "group":
+                mentions = getattr(msg, "mentions", None) or []
+                mentioned = any(
+                    getattr(m, "name", "") == self._app_id for m in mentions
+                )
+                # Also check for @all mentions
+                if not mentioned and not any(
+                    getattr(m, "name", "") == "all" for m in mentions
+                ):
+                    # Fallback: check raw text for @
+                    if "@" not in text:
+                        logger.debug("Feishu event dropped: not @mentioned in group chat")
+                        return
+
             # sender_id is a UserId object with open_id/union_id/user_id attrs
             sender = inner.sender
             user_id = ""
@@ -236,7 +252,6 @@ class FeishuAdapter(BasePlatformAdapter):
                 uid = sender.sender_id
                 user_id = uid.open_id or uid.union_id or uid.user_id or ""
 
-            chat_type = msg.chat_type or "dm"
             event_id = msg.message_id or ""
 
             # ── dedup ──

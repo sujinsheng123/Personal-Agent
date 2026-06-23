@@ -1,87 +1,108 @@
-"""Todo list management — persisted to data/todos.json."""
+"""Todo list management — persisted to SQLite for cross-session durability."""
 
-import json
+from __future__ import annotations
+
+import aiosqlite
+import logging
 import time
 from pathlib import Path
 
 from personal_agent.tools.entry import ToolEntry
 from personal_agent.tools.registry import tool_registry
 
-_todos_path: Path = Path("./data/todos.json")
+logger = logging.getLogger(__name__)
+
+_db_path: Path = Path("./data/todos.db")
 
 
 def set_todos_path(path: Path) -> None:
-    global _todos_path
-    _todos_path = path
+    global _db_path
+    _db_path = path
 
 
-def _load() -> list[dict]:
-    if not _todos_path.exists():
-        return []
-    return json.loads(_todos_path.read_text())
-
-
-def _save(todos: list[dict]) -> None:
-    _todos_path.parent.mkdir(parents=True, exist_ok=True)
-    _todos_path.write_text(json.dumps(todos, indent=2, ensure_ascii=False))
+async def _get_db() -> aiosqlite.Connection:
+    db = await aiosqlite.connect(str(_db_path))
+    await db.execute(
+        "CREATE TABLE IF NOT EXISTS todos ("
+        "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
+        "  title TEXT NOT NULL,"
+        "  status TEXT DEFAULT 'pending',"
+        "  created_at REAL"
+        ")"
+    )
+    await db.commit()
+    return db
 
 
 async def _todo(action: str, title: str = "", id: int = 0, status: str = "pending") -> str:
-    todos = _load()
-    if action == "add":
-        new_id = max((t.get("id", 0) for t in todos), default=0) + 1
-        todos.append({
-            "id": new_id, "title": title, "status": "pending",
-            "created_at": time.time(),
-        })
-        _save(todos)
-        return f"Todo #{new_id} added: {title}"
+    db = await _get_db()
+    try:
+        if action == "add":
+            await db.execute(
+                "INSERT INTO todos (title, status, created_at) VALUES (?, 'pending', ?)",
+                (title, time.time()),
+            )
+            await db.commit()
+            cursor = await db.execute("SELECT last_insert_rowid()")
+            row = await cursor.fetchone()
+            new_id = row[0] if row else 0
+            return f"Todo #{new_id} added: {title}"
 
-    if action == "list":
-        if not todos:
-            return "No todos."
-        lines = []
-        for t in sorted(todos, key=lambda x: x.get("id", 0)):
-            status_mark = "[x]" if t.get("status") == "done" else "[ ]"
-            lines.append(f"#{t['id']} {status_mark} {t.get('title', '')}")
-        return "\n".join(lines)
+        if action == "list":
+            cursor = await db.execute(
+                "SELECT id, title, status FROM todos ORDER BY id"
+            )
+            rows = await cursor.fetchall()
+            if not rows:
+                return "No todos."
+            lines = []
+            for r in rows:
+                mark = "[x]" if r[2] == "done" else "[ ]"
+                lines.append(f"#{r[0]} {mark} {r[1]}")
+            return "\n".join(lines)
 
-    if action == "update":
-        for t in todos:
-            if t.get("id") == id:
-                if title:
-                    t["title"] = title
-                if status in ("pending", "done", "cancelled"):
-                    t["status"] = status
-                _save(todos)
-                return f"Todo #{id} updated: {t['title']} [{t['status']}]"
-        return f"Todo #{id} not found."
+        if action == "update":
+            updates = []
+            params = []
+            if title:
+                updates.append("title = ?")
+                params.append(title)
+            if status in ("pending", "done", "cancelled"):
+                updates.append("status = ?")
+                params.append(status)
+            if not updates:
+                return "Error: nothing to update (provide title or status)"
+            params.append(id)
+            cursor = await db.execute(
+                f"UPDATE todos SET {', '.join(updates)} WHERE id = ?", params
+            )
+            await db.commit()
+            if cursor.rowcount == 0:
+                return f"Todo #{id} not found."
+            return f"Todo #{id} updated."
 
-    if action == "delete":
-        before = len(todos)
-        todos = [t for t in todos if t.get("id") != id]
-        if len(todos) < before:
-            _save(todos)
+        if action == "delete":
+            cursor = await db.execute("DELETE FROM todos WHERE id = ?", (id,))
+            await db.commit()
+            if cursor.rowcount == 0:
+                return f"Todo #{id} not found."
             return f"Todo #{id} deleted."
-        return f"Todo #{id} not found."
 
-    return f"Unknown action: {action}"
+        return f"Unknown action: {action}"
+    finally:
+        await db.close()
 
 
 tool_registry.register(ToolEntry(
     name="todo",
-    description="Manage a todo list. Actions: add (create), list (show all), update (modify title/status), delete (remove). Status can be 'pending', 'done', or 'cancelled'.",
+    description="Manage a todo list (persisted cross-session). Actions: add (create), list (show all), update (modify title/status), delete (remove). Status: pending, done, cancelled.",
     schema={
         "type": "object",
         "properties": {
-            "action": {
-                "type": "string",
-                "enum": ["add", "list", "update", "delete"],
-                "description": "Action to perform",
-            },
+            "action": {"type": "string", "enum": ["add", "list", "update", "delete"]},
             "title": {"type": "string", "description": "Todo title (for add/update)"},
             "id": {"type": "integer", "description": "Todo ID (for update/delete)"},
-            "status": {"type": "string", "description": "New status (for update): pending, done, cancelled"},
+            "status": {"type": "string", "description": "New status: pending, done, cancelled"},
         },
         "required": ["action"],
     },
