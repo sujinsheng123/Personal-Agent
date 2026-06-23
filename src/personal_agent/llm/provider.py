@@ -85,31 +85,25 @@ provider_registry = ProviderRegistry()
 
 # ── Builtin provider factories ─────────────────────────
 
-def _build_context_window(config) -> int:
-    if config.llm_context_window > 0:
-        return config.llm_context_window
-    return _detect_context_window(config.llm_model)
-
-
 def _deepseek_factory(config) -> ProviderProfile:
     return ProviderProfile(
         name="deepseek", base_url=config.llm_base_url, api_key=config.llm_api_key,
         model=config.llm_model, max_tokens=config.llm_max_tokens,
-        context_window=_build_context_window(config),
+        context_window=_detect_context_window(config.llm_model),
     )
 
 def _openai_factory(config) -> ProviderProfile:
     return ProviderProfile(
         name="openai", base_url=config.llm_base_url, api_key=config.llm_api_key,
         model=config.llm_model, max_tokens=config.llm_max_tokens,
-        context_window=_build_context_window(config),
+        context_window=_detect_context_window(config.llm_model),
     )
 
 def _anthropic_factory(config) -> ProviderProfile:
     return ProviderProfile(
         name="anthropic", base_url=config.llm_base_url, api_key=config.llm_api_key,
         model=config.llm_model, max_tokens=config.llm_max_tokens,
-        context_window=_build_context_window(config),
+        context_window=_detect_context_window(config.llm_model),
     )
 
 def _openrouter_factory(config) -> ProviderProfile:
@@ -120,7 +114,7 @@ def _openrouter_factory(config) -> ProviderProfile:
         api_key=config.llm_api_key,
         model=config.llm_model,
         max_tokens=config.llm_max_tokens,
-        context_window=_build_context_window(config),
+        context_window=_detect_context_window(config.llm_model),
         extra_headers={
             "HTTP-Referer": "http://localhost",
             "X-Title": "Personal Agent",

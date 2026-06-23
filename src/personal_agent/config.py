@@ -32,7 +32,6 @@ class Settings:
         self.llm_api_mode: str = env.get("LLM_API_MODE", "auto")
         self.llm_provider: str = env.get("LLM_PROVIDER", "deepseek")
         self.llm_max_tokens: int = int(env.get("LLM_MAX_TOKENS", "4096"))
-        self.llm_context_window: int = int(env.get("LLM_CONTEXT_WINDOW", "0"))  # 0 = auto
 
         # ── Platforms (from .env) ──
         self.feishu_app_id: str = env.get("FEISHU_APP_ID", "")
