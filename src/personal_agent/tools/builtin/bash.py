@@ -203,13 +203,26 @@ _PATH_ESCAPE_PATTERNS: list[str] = [
 
 
 def _glob_pattern_to_regex(glob_pat: str) -> str:
-    """Convert a sandbox blocked glob (e.g. '**/.env') to a simple regex for command scanning."""
+    """Convert a sandbox blocked glob (e.g. '**/.env') to a regex for command scanning.
+
+    Examples:
+      **/.env          -> \\.env
+      **/.env.*        -> \\.env\\.[^/\\s]*
+      **/.git/**       -> \\.git/
+      **/id_rsa*       -> id_rsa[^/\\s]*
+      **/data/auth/**  -> data/auth/
+    """
     pat = glob_pat.strip()
-    # Strip leading **/ and trailing /**
-    pat = pat.replace("**/", "").rstrip("/")
-    # Escape special regex chars in the remaining literal part
-    escaped = re.escape(pat)
-    return escaped
+    # Strip leading **/
+    if pat.startswith("**/"):
+        pat = pat[3:]
+    # Strip trailing /**
+    if pat.endswith("/**"):
+        pat = pat[:-3] + "/"
+    # Split on * wildcard, escape literal parts, rejoin with wildcard
+    parts = pat.split("*")
+    escaped = [re.escape(p) for p in parts]
+    return "[^/\\\\\\s]*".join(escaped)
 
 
 def _check_path_sandbox(cmd_line: str) -> str | None:
@@ -238,7 +251,9 @@ def _check_path_sandbox(cmd_line: str) -> str | None:
     cmd_norm = cmd_line.replace("\\", "/")
     for root in sandbox.roots:
         rs = str(root).replace("\\", "/")
-        if rs in cmd_norm:
+        # Match as full path component — avoids Desktop matching DesktopProjects
+        escaped_root = re.escape(rs)
+        if re.search(rf'(?:^|\s){escaped_root}(?:/|$)', cmd_norm):
             return None  # path is under a configured root, allow
 
     # ── 4. Escape patterns — system paths that bypass root check ──

@@ -228,8 +228,9 @@ def _pre_check(tc: dict, entry) -> str | None:
             if sandbox_err:
                 return sandbox_err
             content = inp.get("content", "")
-            if len(content) > 100_000:
-                return f"Error: content too large ({len(content)} bytes, max 100000)"
+            from personal_agent.tools.builtin.file_write import _MAX_WRITE_BYTES
+            if len(content) > _MAX_WRITE_BYTES:
+                return f"Error: content too large ({len(content)} bytes, max {_MAX_WRITE_BYTES})"
 
     # ── edit: sandbox path check ──
     elif name == "edit":

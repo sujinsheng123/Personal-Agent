@@ -14,6 +14,7 @@ from personal_agent.memory.file_store import FileMemoryProvider, set_system_dir
 from personal_agent.memory.manager import MemoryManager
 from personal_agent.tools.sandbox import init_sandbox
 from personal_agent.tools.builtin.bash import set_allow_network, set_restrict_paths, set_work_dir as set_bash_work_dir
+from personal_agent.tools.builtin.file_write import set_max_write_bytes
 from personal_agent.tools.audit import set_audit_path
 
 logger = logging.getLogger("personal_agent")
@@ -165,6 +166,7 @@ async def boot() -> None:
     set_allow_network(settings.bash_allow_network)
     set_restrict_paths(settings.bash_restrict_paths)
     set_bash_work_dir(settings.bash_work_dir)
+    set_max_write_bytes(settings.file_max_write_bytes)
     if settings.audit_enabled:
         set_audit_path(data_dir / "audit.log")
 
